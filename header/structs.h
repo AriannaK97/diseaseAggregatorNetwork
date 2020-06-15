@@ -5,6 +5,7 @@
 #ifndef DISEASEMONITOR_STRUCTS_H
 #define DISEASEMONITOR_STRUCTS_H
 
+#include <stdint.h>
 
 typedef struct BucketEntry BucketEntry;
 typedef struct Bucket Bucket;
@@ -62,6 +63,8 @@ typedef struct CmdManager{
     int fd_client_w;
     int fd_client_r;
     int workerId;
+    char* serverIP;
+    int serverPort;
 }CmdManager;
 
 typedef struct AgeRange{

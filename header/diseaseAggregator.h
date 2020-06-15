@@ -54,6 +54,8 @@ typedef struct FileExplorer{
 typedef struct AggregatorInputArguments{
     size_t bufferSize;
     int numWorkers;
+    char *serverIP;
+    int serverPort;
     char *input_dir;
 }AggregatorInputArguments;
 
@@ -74,13 +76,15 @@ typedef struct AggregatorServerManager{
     int success;
     int fail;
     char* line;
+    char *serverIP;
+    int serverPort;
 }AggregatorServerManager;
 
 
 /**
  * Global Vars/Structs
  * */
-AggregatorServerManager* aggregatorServerManager;
+AggregatorServerManager* aggregatorMasterManager;
 bool stayDead;
 
 
@@ -104,9 +108,9 @@ void printAggregatorManagerDirectoryDistributor(AggregatorServerManager* aggrega
 
 void DiseaseAggregatorServerManager(AggregatorServerManager* aggregatorServerManager);
 
-bool sendStatistics(CmdManager* cmdManager);
+bool sendStatistics(int sock);
 
-bool receiveStats(AggregatorServerManager* aggregatorServerManager, int workerId);
+//bool receiveStats(int readBufferSize, int sock);
 
 void exitAggregator(AggregatorServerManager* aggregatorServerManager);
 

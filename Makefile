@@ -1,46 +1,59 @@
 CC	=	gcc
 FLAGS   =	-Wall	-g	-c	-D_POSIX_C_SOURCE=199309L
 
-all: diseaseAggregator diseaseMonitor_client
+all: master diseaseMonitor_worker whoClient whoServer
 
-diseaseAggregator:   main.o  diseaseAggregator.o list_lib.o	 data_io.o   redBlackTree.o  command_lib.o   hashTable.o	communication.o
-	$(CC)   -o diseaseAggregator_server main.o diseaseAggregator.o list_lib.o	 data_io.o   redBlackTree.o  command_lib.o   hashTable.o	communication.o
+master:   master.o  diseaseAggregator.o list_lib.o	 data_io.o   redBlackTree.o  command_lib.o   hashTable.o	communication.o
+	$(CC)   -o master master.o diseaseAggregator.o list_lib.o	 data_io.o   redBlackTree.o  command_lib.o   hashTable.o	communication.o
 
-diseaseMonitor_client:  diseaseMonitorApp.o data_io.o   redBlackTree.o  command_lib.o   hashTable.o list_lib.o	diseaseAggregator.o	communication.o
-	$(CC)   -o	diseaseMonitor_client	diseaseMonitorApp.o data_io.o   redBlackTree.o  command_lib.o   hashTable.o list_lib.o	diseaseAggregator.o	communication.o
+diseaseMonitor_worker:  worker.o data_io.o   redBlackTree.o  command_lib.o   hashTable.o list_lib.o	diseaseAggregator.o	communication.o
+	$(CC)   -o	diseaseMonitor_worker	worker.o data_io.o   redBlackTree.o  command_lib.o   hashTable.o list_lib.o	diseaseAggregator.o	communication.o
+	$(CC)   -o	diseaseMonitor_worker	worker.o data_io.o   redBlackTree.o  command_lib.o   hashTable.o list_lib.o	diseaseAggregator.o	communication.o
 
-main.o: src/server/main.c
-	$(CC)	$(FLAGS)	src/server/main.c
+whoClient: whoClient.o
+	$(CC)	-o	whoClient	whoClient.o
 
-list_lib.o:   src/client/list_lib.c
-	$(CC)	$(FLAGS)	src/client/list_lib.c
+whoServer: whoServer.o	serverIO.o
+	$(CC)	-o whoServer	whoServer.o	serverIO.o	-lpthread
 
-data_io.o:    src/client/data_io.c
-	$(CC)	$(FLAGS)	src/client/data_io.c
+whoServer.o: src/whoServer/whoServer.c
+	$(CC) $(FLAGS)	src/whoServer/whoServer.c
 
-hashTable.o:    src/client/hashTable.c
-	$(CC)	$(FLAGS)	src/client/hashTable.c
+serverIO.o: src/whoServer/serverIO.c
+	$(CC)	$(FLAGS)	src/whoServer/serverIO.c
 
-redBlackTree.o:    src/client/redBlackTree.c
-	$(CC)	$(FLAGS)	src/client/redBlackTree.c
+whoClient.o:	src/whoClient/whoClient.c
+	$(CC)	$(FLAGS)	src/whoClient/whoClient.c
 
-command_lib.o:    src/client/command_lib.c
-	$(CC)	$(FLAGS)	src/client/command_lib.c
+list_lib.o:   src/worker/list_lib.c
+	$(CC)	$(FLAGS)	src/worker/list_lib.c
 
-diseaseAggregator.o:    src/server/diseaseAggregator.c
-	$(CC)	$(FLAGS)	src/server/diseaseAggregator.c
+data_io.o:    src/worker/data_io.c
+	$(CC)	$(FLAGS)	src/worker/data_io.c
 
-server.o:    src/server/server.c
-	$(CC)	$(FLAGS)	src/server/server.c
+hashTable.o:    src/worker/hashTable.c
+	$(CC)	$(FLAGS)	src/worker/hashTable.c
 
-diseaseMonitorApp.o: src/client/diseaseMonitorApp.c
-	$(CC)	$(FLAGS)	src/client/diseaseMonitorApp.c
+redBlackTree.o:    src/worker/redBlackTree.c
+	$(CC)	$(FLAGS)	src/worker/redBlackTree.c
 
-communication.o:	src/server/communication.c
-	$(CC)	$(FLAGS)	src/server/communication.c
+command_lib.o:    src/worker/command_lib.c
+	$(CC)	$(FLAGS)	src/worker/command_lib.c
+
+diseaseAggregator.o:    src/master/diseaseAggregator.c
+	$(CC)	$(FLAGS)	src/master/diseaseAggregator.c
+
+master.o:    src/master/master.c
+	$(CC)	$(FLAGS)	src/master/master.c
+
+worker.o: src/worker/worker.c
+	$(CC)	$(FLAGS)	src/worker/worker.c
+
+communication.o:	src/master/communication.c
+	$(CC)	$(FLAGS)	src/master/communication.c
 
 clean:
-	rm	-rf *.o diseaseMonitor_client diseaseAggregator
+	rm	-rf *.o diseaseMonitor_worker master whoClient whoServer
 	rm -rf worker*
 	rm -rf aggregator_server
 	rm -rf log_file.*

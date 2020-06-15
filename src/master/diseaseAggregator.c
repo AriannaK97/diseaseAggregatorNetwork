@@ -40,17 +40,17 @@ AggregatorServerManager* readDirectoryFiles(AggregatorInputArguments* arguments)
     }
     rewinddir(FD);
 
-    aggregatorServerManager = (AggregatorServerManager*)malloc(sizeof(AggregatorServerManager));
+    aggregatorMasterManager = (AggregatorServerManager*)malloc(sizeof(AggregatorServerManager));
     /*array of lists - each list holds the directories assigned to each worker*/
     if(arguments->numWorkers > numOfSubDirectories){
         arguments->numWorkers = numOfSubDirectories;    /*if the workers are more than the subdirs*/
     }
-    aggregatorServerManager->success = 0;
-    aggregatorServerManager->fail = 0;
-    aggregatorServerManager->line = NULL;
-    aggregatorServerManager->directoryDistributor = (List**)calloc(sizeof(List*),arguments->numWorkers);
+    aggregatorMasterManager->success = 0;
+    aggregatorMasterManager->fail = 0;
+    aggregatorMasterManager->line = NULL;
+    aggregatorMasterManager->directoryDistributor = (List**)calloc(sizeof(List*), arguments->numWorkers);
     for (int i = 0; i < arguments->numWorkers; ++i) {
-        aggregatorServerManager->directoryDistributor[i] = NULL;
+        aggregatorMasterManager->directoryDistributor[i] = NULL;
     }
 
     while ((in_dir = readdir(FD))){
@@ -80,10 +80,10 @@ AggregatorServerManager* readDirectoryFiles(AggregatorInputArguments* arguments)
 
         listNode = nodeInit(newItem);
         //printf("%s\n", in_dir->d_name);
-        if(aggregatorServerManager->directoryDistributor[distributionPointer] == NULL){
-            aggregatorServerManager->directoryDistributor[distributionPointer] = linkedListInit(listNode);
+        if(aggregatorMasterManager->directoryDistributor[distributionPointer] == NULL){
+            aggregatorMasterManager->directoryDistributor[distributionPointer] = linkedListInit(listNode);
         } else {
-            push(listNode, aggregatorServerManager->directoryDistributor[distributionPointer]);
+            push(listNode, aggregatorMasterManager->directoryDistributor[distributionPointer]);
         }
 
         distributionPointer++;
@@ -96,7 +96,7 @@ AggregatorServerManager* readDirectoryFiles(AggregatorInputArguments* arguments)
     closedir(FD);
     free(dirPath);
     free(subDirPath);
-    return aggregatorServerManager;
+    return aggregatorMasterManager;
 }
 
 
@@ -187,42 +187,49 @@ FileItem* createFileArray(DIR * FD, DirListItem* item, int arraySize, int buffer
 }
 
 
-bool sendStatistics(CmdManager* cmdManager) {
+bool sendStatistics(int sock) {
 
     char* messageSize;
     char* message;
 
     /*write the number of directories that will send stats to follow to fifo*/
-    message = calloc(sizeof(char), cmdManager->bufferSize + 1);
+    message = calloc(sizeof(char), (cmdManager->bufferSize)+1);
     sprintf(message, "%d", cmdManager->numOfDirectories);
-    writeInFifoPipe(cmdManager->fd_client_w, message, (cmdManager->bufferSize) + 1);
+    printf("%s\n\n\n", message);
+    write(sock, message, (cmdManager->bufferSize)+1);
+    //writeInFifoPipe(cmdManager->fd_client_w, message, (cmdManager->bufferSize) + 1);
     free(message);
     /*send statistics*/
     for (int i = 0; i < cmdManager->numOfDirectories; i++) {
         /*write the country*/
-        writeInFifoPipe(cmdManager->fd_client_w, cmdManager->fileExplorer[i]->country,(cmdManager->bufferSize) + 1);
+        write(sock, cmdManager->fileExplorer[i]->country, (cmdManager->bufferSize)+1);
+        //writeInFifoPipe(cmdManager->fd_client_w, cmdManager->fileExplorer[i]->country,(cmdManager->bufferSize) + 1);
 
         /*write number of files for the country*/
-        messageSize = calloc(sizeof(char), cmdManager->bufferSize + 1);
+        messageSize = calloc(sizeof(char), (cmdManager->bufferSize)+1);
         sprintf(messageSize, "%d", cmdManager->fileExplorer[i]->fileArraySize);
-        writeInFifoPipe(cmdManager->fd_client_w, messageSize, (cmdManager->bufferSize)  + 1);
+        write(sock, messageSize, (cmdManager->bufferSize)+1);
+        //writeInFifoPipe(cmdManager->fd_client_w, messageSize, (cmdManager->bufferSize)  + 1);
         free(messageSize);
         for (int j = 0; j < cmdManager->fileExplorer[i]->fileArraySize; j++) {
             /*write the file name*/
 
-            writeInFifoPipe(cmdManager->fd_client_w, cmdManager->fileExplorer[i]->fileItemsArray[j].fileName,
-                                (cmdManager->bufferSize) + 1);
+            write(sock, cmdManager->fileExplorer[i]->fileItemsArray[j].fileName, (cmdManager->bufferSize)+1);
+/*            writeInFifoPipe(cmdManager->fd_client_w, cmdManager->fileExplorer[i]->fileItemsArray[j].fileName,
+                                (cmdManager->bufferSize) + 1);*/
 
             /*write number of diseases for the country*/
-            messageSize = calloc(sizeof(char), cmdManager->bufferSize + 1);
+            messageSize = calloc(sizeof(char), (cmdManager->bufferSize)+1);
             sprintf(messageSize, "%d", cmdManager->fileExplorer[i]->fileItemsArray[j].numOfDiseases);
-            writeInFifoPipe(cmdManager->fd_client_w, messageSize, (cmdManager->bufferSize)  + 1);
+            write(sock, messageSize, (cmdManager->bufferSize)+1);
+            //writeInFifoPipe(cmdManager->fd_client_w, messageSize, (cmdManager->bufferSize)  + 1);
             free(messageSize);
             for (int k = 0; k < cmdManager->fileExplorer[i]->fileItemsArray[j].numOfDiseases; k++) {
                 /*write disease*/
 
-                writeInFifoPipe(cmdManager->fd_client_w,
-                                    cmdManager->fileExplorer[i]->fileItemsArray[j].fileDiseaseStats[k]->disease,(cmdManager->bufferSize) + 1);
+                write(sock, cmdManager->fileExplorer[i]->fileItemsArray[j].fileDiseaseStats[k]->disease, (cmdManager->bufferSize)+1);
+/*                writeInFifoPipe(cmdManager->fd_client_w,
+                                    cmdManager->fileExplorer[i]->fileItemsArray[j].fileDiseaseStats[k]->disease,(cmdManager->bufferSize) + 1);*/
                 /*write stats for age ranges*/
                 for (int l = 0; l < 4; l++) {
                     message = calloc(sizeof(char), (cmdManager->bufferSize) + 1);
@@ -235,20 +242,20 @@ bool sendStatistics(CmdManager* cmdManager) {
                     }else if(l == 3){
                         sprintf(message, "Age range 60+ years: %d cases", cmdManager->fileExplorer[i]->fileItemsArray[j].fileDiseaseStats[k]->AgeRangeCasesArray[l]);
                     }
-
-                    writeInFifoPipe(cmdManager->fd_client_w, message,(cmdManager->bufferSize) + 1);
+                    write(sock, message,(cmdManager->bufferSize)+1);
+                    //writeInFifoPipe(cmdManager->fd_client_w, message,(cmdManager->bufferSize) + 1);
 
                     free(message);
                 }
                 /*end of stat batch*/
 
-                writeInFifoPipe(cmdManager->fd_client_w, "next",(cmdManager->bufferSize) + 1);
+                write(sock, "next",(cmdManager->bufferSize)+1);
             }
         }
     }
 
     /*send end of transmission message*/
-    writeInFifoPipe(cmdManager->fd_client_w, "StatsDone", cmdManager->bufferSize);
+    write(sock, "StatsDone", (cmdManager->bufferSize)+1);
     return true;
 }
 
@@ -258,56 +265,73 @@ void deallockWorkerInfo(WorkerInfo* workerInfo){
     free(workerInfo);
 }
 
-bool receiveStats(AggregatorServerManager* aggregatorServerManager, int workerId){
+/*
+bool receiveStats(int readBufferSize,int sock){
     char *country, *fileName, *disease, *message, *messageSize;
     int numOfDirs, numOfFiles, numOfDiseases;
 
-    /*read per country*/
-    message = calloc(sizeof(char), aggregatorServerManager->bufferSize + 1);
-    readFromFifoPipe(aggregatorServerManager->workersArray[workerId].fd_client_r, message, (aggregatorServerManager->bufferSize)+1);
+    */
+/*read per country*//*
+
+    message = calloc(sizeof(char), readBufferSize + 1);
+    readFromFifoPipe(sock, message, readBufferSize+1);
     numOfDirs = atoi(message);
     free(message);
 
     for (int i = 0; i < numOfDirs; i++) {
 
-        /*read actual message from fifo*/
-        country = calloc(sizeof(char), (aggregatorServerManager->bufferSize)+1);
-        readFromFifoPipe(aggregatorServerManager->workersArray[workerId].fd_client_r, country,(aggregatorServerManager->bufferSize)+1);
+        */
+/*read actual message from fifo*//*
 
-        /*read per file*/
-        messageSize = calloc(sizeof(char), (aggregatorServerManager->bufferSize) + 1);
-        readFromFifoPipe(aggregatorServerManager->workersArray[workerId].fd_client_r, messageSize, (aggregatorServerManager->bufferSize)+1);
+        country = calloc(sizeof(char), readBufferSize+1);
+        readFromFifoPipe(sock, country,readBufferSize+1);
+
+        */
+/*read per file*//*
+
+        messageSize = calloc(sizeof(char), readBufferSize + 1);
+        readFromFifoPipe(sock, messageSize, readBufferSize+1);
         numOfFiles = atoi(messageSize);
         free(messageSize);
         for (int j = 0; j < numOfFiles; j++) {
 
-            /*read actual message from fifo*/
-            fileName = calloc(sizeof(char), (aggregatorServerManager->bufferSize)+1);
-            readFromFifoPipe(aggregatorServerManager->workersArray[workerId].fd_client_r, fileName,(aggregatorServerManager->bufferSize)+1);
+            */
+/*read actual message from fifo*//*
+
+            fileName = calloc(sizeof(char), readBufferSize+1);
+            readFromFifoPipe(sock, fileName,readBufferSize+1);
             fprintf(stdout, "\n%s\n%s\n",fileName, country);
 
-            /*read per disease*/
-            messageSize = calloc(sizeof(char), aggregatorServerManager->bufferSize + 1);
-            readFromFifoPipe(aggregatorServerManager->workersArray[workerId].fd_client_r, messageSize, (aggregatorServerManager->bufferSize)+1);
+            */
+/*read per disease*//*
+
+            messageSize = calloc(sizeof(char), readBufferSize + 1);
+            readFromFifoPipe(sock, messageSize, readBufferSize+1);
             numOfDiseases = atoi(messageSize);
             free(messageSize);
             for (int k = 0; k < numOfDiseases; k++) {
-                /*read actual message from fifo*/
-                disease = calloc(sizeof(char), (aggregatorServerManager->bufferSize)+1);
-                readFromFifoPipe(aggregatorServerManager->workersArray[workerId].fd_client_r, disease,(aggregatorServerManager->bufferSize)+1);
+                */
+/*read actual message from fifo*//*
+
+                disease = calloc(sizeof(char), readBufferSize+1);
+                readFromFifoPipe(sock, disease,readBufferSize+1);
                 fprintf(stdout, "%s\n", disease);
 
                 for (int l = 0; l < 4; l++) {
-                    /*read actual message from fifo*/
-                    message = calloc(sizeof(char), aggregatorServerManager->bufferSize+1);
-                    readFromFifoPipe(aggregatorServerManager->workersArray[workerId].fd_client_r, message,(aggregatorServerManager->bufferSize)+1);
+                    */
+/*read actual message from fifo*//*
+
+                    message = calloc(sizeof(char), readBufferSize+1);
+                    readFromFifoPipe(sock, message,readBufferSize+1);
                     fprintf(stdout, "%s\n", message);
                     free(message);
                 }
 
-                /*read actual message from fifo*/
-                message = calloc(sizeof(char), (aggregatorServerManager->bufferSize)+1);
-                readFromFifoPipe(aggregatorServerManager->workersArray[workerId].fd_client_r, message,(aggregatorServerManager->bufferSize)+1);
+                */
+/*read actual message from fifo*//*
+
+                message = calloc(sizeof(char), readBufferSize+1);
+                readFromFifoPipe(sock, message,readBufferSize+1);
                 free(message);
                 free(disease);
             }
@@ -315,24 +339,25 @@ bool receiveStats(AggregatorServerManager* aggregatorServerManager, int workerId
         }
         free(country);
     }
-    message = calloc(sizeof(char), (aggregatorServerManager->bufferSize)+1);
-    readFromFifoPipe(aggregatorServerManager->workersArray[workerId].fd_client_r, message,(aggregatorServerManager->bufferSize)+1);
+    message = calloc(sizeof(char), readBufferSize+1);
+    readFromFifoPipe(sock, message,readBufferSize+1);
     free(message);
     return true;
 }
+*/
 
 
 AggregatorInputArguments* getAggregatorInputArgs(int argc, char** argv){
 
     AggregatorInputArguments* arguments =  malloc(sizeof(struct AggregatorInputArguments));
     int numOfArgs = 0;
-    if(argc != 7){
+    if(argc != 11){
         fprintf(stderr, "Invalid number of arguments\nExit...\n");
         exit(1);
     }
     for (int i = 1; i < argc; i += 2) {
         if (strcmp(argv[i], "-i") == 0) {
-            arguments->input_dir = malloc(sizeof(char)*DIR_LEN);
+            arguments->input_dir = calloc(sizeof(char), DIR_LEN);
             strcpy(arguments->input_dir, argv[i + 1]);
             numOfArgs += 2;
         } else if (strcmp(argv[i], "-w") == 0) {
@@ -344,7 +369,12 @@ AggregatorInputArguments* getAggregatorInputArgs(int argc, char** argv){
                 arguments->bufferSize = 120;
             }
             numOfArgs += 2;
-        } else {
+        }else if(strcmp(argv[i], "-s") == 0){
+            arguments->serverIP = calloc(sizeof(char), 120);
+            strcpy(arguments->serverIP, argv[i + 1]);
+        }else if(strcmp(argv[i], "-p") == 0){
+            arguments->serverPort = atoi(argv[i + 1]);
+        }else {
             fprintf(stderr, "Unknown option %s\n", argv[i]);
             exit(1);
         }
@@ -431,7 +461,7 @@ void DiseaseAggregatorServerManager(AggregatorServerManager* pAggregatorServerMa
                     int total = 0;
                     for (int i = 0; i < pAggregatorServerManager->numOfWorkers; i++) {
                         writeInFifoPipe(pAggregatorServerManager->workersArray[i].fd_client_w, message, pAggregatorServerManager->bufferSize + 1 );
-                        answer = calloc(sizeof(char), aggregatorServerManager->bufferSize + 1);
+                        answer = calloc(sizeof(char), aggregatorMasterManager->bufferSize + 1);
                         readFromFifoPipe(pAggregatorServerManager->workersArray[i].fd_client_r, answer, pAggregatorServerManager->bufferSize + 1);
                         total += atoi(answer);
                     }
@@ -650,12 +680,13 @@ void freeAggregatorManager(AggregatorServerManager *aggregatorManager){
     free(aggregatorManager->directoryDistributor);
     free(aggregatorManager->workersArray);
     free(aggregatorManager->input_dir);
-    //free(aggregatorServerManager->line);
+    //free(aggregatorMasterManager->line);
     free(aggregatorManager);
 }
 
 void freeAggregatorInputArguments(AggregatorInputArguments *aggregatorInputArguments){
     free(aggregatorInputArguments->input_dir);
+    free(aggregatorInputArguments->serverIP);
     free(aggregatorInputArguments);
 }
 
@@ -692,47 +723,47 @@ void respawnWorker(int sig){
 
     if(!stayDead){
         fprintf(stdout,"I might be Kronos for all you know...\n");
-        for (int i = 0; i < aggregatorServerManager->numOfWorkers; i++) {
-            if (aggregatorServerManager->workersArray[i].workerPid == deadWorkerPid) {
+        for (int i = 0; i < aggregatorMasterManager->numOfWorkers; i++) {
+            if (aggregatorMasterManager->workersArray[i].workerPid == deadWorkerPid) {
                 fprintf(stdout,"Respawning...\n");
 
                 if ((pid = fork()) == -1) {
                     perror("fork error");
                     exit(1);
                 } else if (pid == 0) {
-                    char* bufferSize_str = (char*)malloc(sizeof(char)*(aggregatorServerManager->bufferSize)+1);
-                    char* workerId_str = (char*)malloc(sizeof(char)*(aggregatorServerManager->bufferSize)+1);
-                    sprintf(bufferSize_str, "%zu", aggregatorServerManager->bufferSize);
+                    char* bufferSize_str = (char*)malloc(sizeof(char)*(aggregatorMasterManager->bufferSize) + 1);
+                    char* workerId_str = (char*)malloc(sizeof(char)*(aggregatorMasterManager->bufferSize) + 1);
+                    sprintf(bufferSize_str, "%zu", aggregatorMasterManager->bufferSize);
                     sprintf(workerId_str, "%d", i);
-                    execlp("./diseaseMonitor_client", "./diseaseMonitor_client", bufferSize_str, "5", "5" , "256",
-                           aggregatorServerManager->input_dir, workerId_str, (char*)NULL);
+                    execlp("./diseaseMonitor_worker", "./diseaseMonitor_worker", bufferSize_str, "5", "5" , "256",
+                           aggregatorMasterManager->input_dir, workerId_str, (char*)NULL);
                     fprintf(stdout,"Return not expected. Must be an execv error.n\n");
                     free(bufferSize_str);
                 }
 
-                aggregatorServerManager->workersArray[i].workerPid = pid;
+                aggregatorMasterManager->workersArray[i].workerPid = pid;
 
-                make_fifo_name_server_client(pid, aggregatorServerManager->workersArray[i].serverFileName);
-                createNewFifoPipe(aggregatorServerManager->workersArray[i].serverFileName);
-                aggregatorServerManager->workersArray[i].fd_client_w = openFifoToWrite(
-                        aggregatorServerManager->workersArray[i].serverFileName);
+                make_fifo_name_server_client(pid, aggregatorMasterManager->workersArray[i].serverFileName);
+                createNewFifoPipe(aggregatorMasterManager->workersArray[i].serverFileName);
+                aggregatorMasterManager->workersArray[i].fd_client_w = openFifoToWrite(
+                        aggregatorMasterManager->workersArray[i].serverFileName);
 
-                /*send the length of the data the client has to read*/
-                message = calloc(sizeof(char), aggregatorServerManager->bufferSize + 1);
-                sprintf(message, "%d", aggregatorServerManager->directoryDistributor[i]->itemCount);
-                writeInFifoPipe(aggregatorServerManager->workersArray[i].fd_client_w, message,
-                                (aggregatorServerManager->bufferSize) + 1);
+                /*send the length of the data the worker has to read*/
+                message = calloc(sizeof(char), aggregatorMasterManager->bufferSize + 1);
+                sprintf(message, "%d", aggregatorMasterManager->directoryDistributor[i]->itemCount);
+                writeInFifoPipe(aggregatorMasterManager->workersArray[i].fd_client_w, message,
+                                (aggregatorMasterManager->bufferSize) + 1);
                 free(message);
 
-                currentNode = (Node *) aggregatorServerManager->directoryDistributor[i]->head;
+                currentNode = (Node *) aggregatorMasterManager->directoryDistributor[i]->head;
                 while (currentNode != NULL) {
                     item = currentNode->item;
                     /*write the size of the name of the directory to follow to fifo*/
                     /*write the directory name to fifo*/
-                    message = calloc(sizeof(char), (aggregatorServerManager->bufferSize) + 1);
+                    message = calloc(sizeof(char), (aggregatorMasterManager->bufferSize) + 1);
                     strcpy(message, item->dirName);
-                    writeInFifoPipe(aggregatorServerManager->workersArray[i].fd_client_w, message,
-                                    (size_t) (aggregatorServerManager->bufferSize) + 1);
+                    writeInFifoPipe(aggregatorMasterManager->workersArray[i].fd_client_w, message,
+                                    (size_t) (aggregatorMasterManager->bufferSize) + 1);
                     free(message);
 
                     currentNode = currentNode->next;
@@ -740,23 +771,23 @@ void respawnWorker(int sig){
 
 
                 /*start receiving*/
-                make_fifo_name_client_server(pid, aggregatorServerManager->workersArray[i].workerFileName);
-                createNewFifoPipe(aggregatorServerManager->workersArray[i].workerFileName);
-                aggregatorServerManager->workersArray[i].fd_client_r = openFifoToRead(
-                        aggregatorServerManager->workersArray[i].workerFileName);
+/*                make_fifo_name_client_server(pid, aggregatorMasterManager->workersArray[i].workerFileName);
+                createNewFifoPipe(aggregatorMasterManager->workersArray[i].workerFileName);
+                aggregatorMasterManager->workersArray[i].fd_client_r = openFifoToRead(
+                        aggregatorMasterManager->workersArray[i].workerFileName);
 
-                /*read actual message from fifo*/
-                message = calloc(sizeof(char), (aggregatorServerManager->bufferSize) + 1);
-                readFromFifoPipe(aggregatorServerManager->workersArray[i].fd_client_r, message,
-                                 (aggregatorServerManager->bufferSize) + 1);
+                *//*read actual message from fifo*//*
+                message = calloc(sizeof(char), (aggregatorMasterManager->bufferSize) + 1);
+                readFromFifoPipe(aggregatorMasterManager->workersArray[i].fd_client_r, message,
+                                 (aggregatorMasterManager->bufferSize) + 1);
 
                 fprintf(stdout, "%s\n", message);
 
-                if (!receiveStats(aggregatorServerManager, i)) {
+                if (!receiveStats(aggregatorMasterManager, i)) {
                     fprintf(stderr, "Could not receive statistics\n");
                 }
 
-                free(message);
+                free(message);*/
                 break;
             }
         }
@@ -774,8 +805,8 @@ void aggregatorLogFile(int sig){
     pid_t aggregatorPid = getpid();
 
     fprintf(stdout, "Family killing spree...\n");
-    for (int j = 0; j < aggregatorServerManager->numOfWorkers; ++j) {
-        kill(aggregatorServerManager->workersArray[j].workerPid, SIGKILL);
+    for (int j = 0; j < aggregatorMasterManager->numOfWorkers; ++j) {
+        kill(aggregatorMasterManager->workersArray[j].workerPid, SIGKILL);
     }
 
     sprintf(fileName, "log_file.%d", aggregatorPid);
@@ -785,8 +816,8 @@ void aggregatorLogFile(int sig){
         perror("could not create log file for worker- ");
         exit(3);
     }
-    for(int i = 0; i < aggregatorServerManager->numOfWorkers; i++) {
-        currentNode = (Node *) aggregatorServerManager->directoryDistributor[i]->head;
+    for(int i = 0; i < aggregatorMasterManager->numOfWorkers; i++) {
+        currentNode = (Node *) aggregatorMasterManager->directoryDistributor[i]->head;
         while (currentNode != NULL) {
             item = (DirListItem *) currentNode->item;
             fprintf(fptr, "%s\n", item->dirName);
@@ -795,10 +826,10 @@ void aggregatorLogFile(int sig){
 
     }
 
-    fprintf(fptr, "TOTAL %d\nSUCCESS %d\nFAIL %d\n", aggregatorServerManager->success + aggregatorServerManager->fail,
-            aggregatorServerManager->success, aggregatorServerManager->fail);
+    fprintf(fptr, "TOTAL %d\nSUCCESS %d\nFAIL %d\n", aggregatorMasterManager->success + aggregatorMasterManager->fail,
+            aggregatorMasterManager->success, aggregatorMasterManager->fail);
 
-    freeAggregatorManager(aggregatorServerManager);
+    freeAggregatorManager(aggregatorMasterManager);
 
     fclose(fptr);
     free(fileName);
@@ -970,8 +1001,8 @@ void receiveStatsUpdate(int signo, siginfo_t *si, void *data){
     (void)data;
 
     childThatSignaled = (unsigned long)si->si_pid;
-    for (int i = 0; i < aggregatorServerManager->numOfWorkers; ++i) {
-        if(aggregatorServerManager->workersArray[i].workerPid == childThatSignaled){
+    for (int i = 0; i < aggregatorMasterManager->numOfWorkers; ++i) {
+        if(aggregatorMasterManager->workersArray[i].workerPid == childThatSignaled){
             workerId = i;
             break;
         }
@@ -981,43 +1012,43 @@ void receiveStatsUpdate(int signo, siginfo_t *si, void *data){
     int numOfDiseases;
 
     /*receives country*/
-    country = calloc(sizeof(char), (aggregatorServerManager->bufferSize)+1);
-    readFromFifoPipe(aggregatorServerManager->workersArray[workerId].fd_client_r, country,(aggregatorServerManager->bufferSize)+1);
+    country = calloc(sizeof(char), (aggregatorMasterManager->bufferSize) + 1);
+    readFromFifoPipe(aggregatorMasterManager->workersArray[workerId].fd_client_r, country, (aggregatorMasterManager->bufferSize) + 1);
 
     /*receives filename*/
-    fileName = calloc(sizeof(char), (aggregatorServerManager->bufferSize)+1);
-    readFromFifoPipe(aggregatorServerManager->workersArray[workerId].fd_client_r, fileName,(aggregatorServerManager->bufferSize)+1);
+    fileName = calloc(sizeof(char), (aggregatorMasterManager->bufferSize) + 1);
+    readFromFifoPipe(aggregatorMasterManager->workersArray[workerId].fd_client_r, fileName, (aggregatorMasterManager->bufferSize) + 1);
     fprintf(stdout, "\n%s\n%s\n",fileName, country);
 
     /*read number of diseases*/
-    messageSize = calloc(sizeof(char), aggregatorServerManager->bufferSize + 1);
-    readFromFifoPipe(aggregatorServerManager->workersArray[workerId].fd_client_r, messageSize, (aggregatorServerManager->bufferSize)+1);
+    messageSize = calloc(sizeof(char), aggregatorMasterManager->bufferSize + 1);
+    readFromFifoPipe(aggregatorMasterManager->workersArray[workerId].fd_client_r, messageSize, (aggregatorMasterManager->bufferSize) + 1);
     numOfDiseases = atoi(messageSize);
     free(messageSize);
     for (int k = 0; k < numOfDiseases; k++) {
         /*read disease from fifo*/
-        disease = calloc(sizeof(char), (aggregatorServerManager->bufferSize)+1);
-        readFromFifoPipe(aggregatorServerManager->workersArray[workerId].fd_client_r, disease,(aggregatorServerManager->bufferSize)+1);
+        disease = calloc(sizeof(char), (aggregatorMasterManager->bufferSize) + 1);
+        readFromFifoPipe(aggregatorMasterManager->workersArray[workerId].fd_client_r, disease, (aggregatorMasterManager->bufferSize) + 1);
         fprintf(stdout, "%s\n", disease);
 
         for (int l = 0; l < 4; l++) {
             /*read actual message from fifo*/
-            message = calloc(sizeof(char), aggregatorServerManager->bufferSize+1);
-            readFromFifoPipe(aggregatorServerManager->workersArray[workerId].fd_client_r, message,(aggregatorServerManager->bufferSize)+1);
+            message = calloc(sizeof(char), aggregatorMasterManager->bufferSize + 1);
+            readFromFifoPipe(aggregatorMasterManager->workersArray[workerId].fd_client_r, message, (aggregatorMasterManager->bufferSize) + 1);
             fprintf(stdout, "%s\n", message);
             free(message);
         }
         /*read actual message from fifo*/
-        message = calloc(sizeof(char), (aggregatorServerManager->bufferSize)+1);
-        readFromFifoPipe(aggregatorServerManager->workersArray[workerId].fd_client_r, message,(aggregatorServerManager->bufferSize)+1);
+        message = calloc(sizeof(char), (aggregatorMasterManager->bufferSize) + 1);
+        readFromFifoPipe(aggregatorMasterManager->workersArray[workerId].fd_client_r, message, (aggregatorMasterManager->bufferSize) + 1);
         free(message);
         free(disease);
     }
     free(fileName);
     free(country);
 
-    message = calloc(sizeof(char), (aggregatorServerManager->bufferSize)+1);
-    readFromFifoPipe(aggregatorServerManager->workersArray[workerId].fd_client_r, message,(aggregatorServerManager->bufferSize)+1);
+    message = calloc(sizeof(char), (aggregatorMasterManager->bufferSize) + 1);
+    readFromFifoPipe(aggregatorMasterManager->workersArray[workerId].fd_client_r, message, (aggregatorMasterManager->bufferSize) + 1);
     free(message);
     fprintf(stdout, "~$:");
 }
