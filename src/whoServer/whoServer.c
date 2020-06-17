@@ -6,17 +6,14 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <netinet/in.h>
-#include <netdb.h>
 #include "../../header/serverIO.h"
-#include "../../header/diseaseAggregator.h"
+
 
 int main (int argc, char** argv){
 
     ServerInputArgs* serverInputArgs;
     int newSock;
-    struct sockaddr_in server, client;
     socklen_t clientlen;
-    char* message;
 
     serverInputArgs = getWhoServerArguments(argc, argv);
     whoServerManager = initializeWhoServerManager(serverInputArgs);
@@ -25,19 +22,20 @@ int main (int argc, char** argv){
     /*Create and initialize circular buffer*/
     CircularBuffer *cBuffer = circularBufInit(whoServerManager->bufferSize);
 
+    /*Create threadpool*/
     ThreadPool* threadPool = initializeThreadpool(whoServerManager->numThreads, cBuffer, 0, whoServerManager->statisticsPortNum);
 
-    /* Create socket for statistics*/
-    whoServerManager->sock = initializeSocket(whoServerManager->statisticsPortNum, 0, WORKER_SOCKET);
 
-    /* Bind socket to address */
+    /* Create socket for statistics, then bind it to address and start listening to it*/
+    whoServerManager->sock = initializeSocket(whoServerManager->statisticsPortNum, WORKER_SOCKET);
+
     if (bind(whoServerManager->sock->socket, whoServerManager->sock->serverptr, sizeof(whoServerManager->sock->socketAddressServer)) < 0)
         perror_exit("bind");
 
-    /* Listen for connections */
     if (listen(whoServerManager->sock->socket, whoServerManager->numThreads) < 0)
         perror_exit("listen");
     printf("Listening for connections to port %d\n", whoServerManager->statisticsPortNum);
+
 
     while (1) {
         /* accept connection */
@@ -47,17 +45,14 @@ int main (int argc, char** argv){
         printf("Accepted connection\n");
 
         pthread_mutex_lock(&(threadPool->mutexLock));
-        printf("\n  Gained lock to add item.\n");
+        fprintf(stdout,"\n------------------------\n");
+        fprintf(stdout,"\nGained lock to add item.\n");
         circularBufPut(threadPool->circularBuffer, newSock);
-        printf("%zu\n", circularBufSize(threadPool->circularBuffer));
         pthread_mutex_unlock(&(threadPool->mutexLock));
         pthread_cond_signal (&(threadPool->mutexCond));
 
         //close(newSock);
         /* must be closed before it gets re-assigned */
     }
-
-
-
 }
 

@@ -6,6 +6,7 @@
 #define DISEASEMONITOR_STRUCTS_H
 
 #include <stdint.h>
+#include "serverIO.h"
 
 typedef struct BucketEntry BucketEntry;
 typedef struct Bucket Bucket;
@@ -60,11 +61,17 @@ typedef struct CmdManager{
     char *input_dir;
     int bufferSize;
     int numOfDiseases; /*auxiliary for statistics collection*/
-    int fd_client_w;
     int fd_client_r;
+    int fd_client_w;
+    struct sockaddr *workerptr;
+    int sock;
+    int workerSock;
     int workerId;
+    int numOfWorkers;
     char* serverIP;
     int serverPort;
+    int workerPort;
+    int newSock;
 }CmdManager;
 
 typedef struct AgeRange{

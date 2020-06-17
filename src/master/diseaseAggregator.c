@@ -5,6 +5,7 @@
 #include <sys/wait.h>
 #include <stdio.h>
 #include <fcntl.h>
+#include <sys/socket.h>
 #include "../../header/diseaseAggregator.h"
 #include "../../header/command_lib.h"
 #include "../../header/communication.h"
@@ -195,44 +196,40 @@ bool sendStatistics(int sock) {
     /*write the number of directories that will send stats to follow to fifo*/
     message = calloc(sizeof(char), (cmdManager->bufferSize)+1);
     sprintf(message, "%d", cmdManager->numOfDirectories);
-    printf("%s\n\n\n", message);
     write(sock, message, (cmdManager->bufferSize)+1);
-    //writeInFifoPipe(cmdManager->fd_client_w, message, (cmdManager->bufferSize) + 1);
     free(message);
+
     /*send statistics*/
     for (int i = 0; i < cmdManager->numOfDirectories; i++) {
         /*write the country*/
         write(sock, cmdManager->fileExplorer[i]->country, (cmdManager->bufferSize)+1);
-        //writeInFifoPipe(cmdManager->fd_client_w, cmdManager->fileExplorer[i]->country,(cmdManager->bufferSize) + 1);
 
         /*write number of files for the country*/
         messageSize = calloc(sizeof(char), (cmdManager->bufferSize)+1);
         sprintf(messageSize, "%d", cmdManager->fileExplorer[i]->fileArraySize);
         write(sock, messageSize, (cmdManager->bufferSize)+1);
-        //writeInFifoPipe(cmdManager->fd_client_w, messageSize, (cmdManager->bufferSize)  + 1);
         free(messageSize);
+
         for (int j = 0; j < cmdManager->fileExplorer[i]->fileArraySize; j++) {
             /*write the file name*/
-
             write(sock, cmdManager->fileExplorer[i]->fileItemsArray[j].fileName, (cmdManager->bufferSize)+1);
-/*            writeInFifoPipe(cmdManager->fd_client_w, cmdManager->fileExplorer[i]->fileItemsArray[j].fileName,
-                                (cmdManager->bufferSize) + 1);*/
 
             /*write number of diseases for the country*/
             messageSize = calloc(sizeof(char), (cmdManager->bufferSize)+1);
             sprintf(messageSize, "%d", cmdManager->fileExplorer[i]->fileItemsArray[j].numOfDiseases);
             write(sock, messageSize, (cmdManager->bufferSize)+1);
-            //writeInFifoPipe(cmdManager->fd_client_w, messageSize, (cmdManager->bufferSize)  + 1);
             free(messageSize);
+
             for (int k = 0; k < cmdManager->fileExplorer[i]->fileItemsArray[j].numOfDiseases; k++) {
                 /*write disease*/
 
                 write(sock, cmdManager->fileExplorer[i]->fileItemsArray[j].fileDiseaseStats[k]->disease, (cmdManager->bufferSize)+1);
-/*                writeInFifoPipe(cmdManager->fd_client_w,
-                                    cmdManager->fileExplorer[i]->fileItemsArray[j].fileDiseaseStats[k]->disease,(cmdManager->bufferSize) + 1);*/
+
                 /*write stats for age ranges*/
                 for (int l = 0; l < 4; l++) {
+
                     message = calloc(sizeof(char), (cmdManager->bufferSize) + 1);
+
                     if(l == 0){
                         sprintf(message, "Age range 0-20 years: %d cases", cmdManager->fileExplorer[i]->fileItemsArray[j].fileDiseaseStats[k]->AgeRangeCasesArray[l]);
                     }else if(l == 1){
@@ -242,13 +239,12 @@ bool sendStatistics(int sock) {
                     }else if(l == 3){
                         sprintf(message, "Age range 60+ years: %d cases", cmdManager->fileExplorer[i]->fileItemsArray[j].fileDiseaseStats[k]->AgeRangeCasesArray[l]);
                     }
-                    write(sock, message,(cmdManager->bufferSize)+1);
-                    //writeInFifoPipe(cmdManager->fd_client_w, message,(cmdManager->bufferSize) + 1);
 
+                    write(sock, message,(cmdManager->bufferSize)+1);
                     free(message);
                 }
-                /*end of stat batch*/
 
+                /*end of stat batch*/
                 write(sock, "next",(cmdManager->bufferSize)+1);
             }
         }
@@ -503,13 +499,19 @@ void commandServer(CmdManager* manager) {
     char *simpleCommand = NULL;
     char *line = calloc(sizeof(char), (manager->bufferSize) + 1);
     int reader = -1;
+    socklen_t clientlen;
+
 
     do{
+        if ((cmdManager->newSock = accept((cmdManager->workerSock), cmdManager->workerptr, &clientlen)) < 0) {
+            perror("Accept worker");
+            exit(1);
+        }
 
-        reader = read(manager->fd_client_r, line, manager->bufferSize + 1);
+        reader = read(manager->newSock, line, manager->bufferSize + 1);
 
         if(sig_flag && reader < 0){
-            reader = read(manager->fd_client_r, line, manager->bufferSize + 1);
+            reader = read(manager->newSock, line, manager->bufferSize + 1);
             sig_flag = false;
         }
 

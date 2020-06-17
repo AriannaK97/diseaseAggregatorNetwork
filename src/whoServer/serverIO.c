@@ -2,6 +2,8 @@
 // Created by AriannaK97 on 11/6/20.
 //
 
+#include <features.h>
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -13,6 +15,7 @@
 #include <unistd.h>
 #include <netinet/in.h>
 #include "../../header/serverIO.h"
+#include "../../header/list_lib.h"
 
 ServerInputArgs* getWhoServerArguments(int argc, char** argv){
     ServerInputArgs* arguments = calloc(sizeof(ServerInputArgs), 1);
@@ -44,7 +47,7 @@ ServerInputArgs* getWhoServerArguments(int argc, char** argv){
 
 WhoServerManager* initializeWhoServerManager(ServerInputArgs* serverInputArgs){
 
-    WhoServerManager* whoServerManager = calloc(sizeof(WhoServerManager), 1);
+    whoServerManager = calloc(sizeof(WhoServerManager), 1);
 
     whoServerManager->statisticsPortNum = serverInputArgs->statisticsPortNum;
     whoServerManager->queryPortNum = serverInputArgs->queryPortNum;
@@ -82,8 +85,10 @@ void perror_exit(char *message){
 
 
 bool receiveStats(int readBufferSize, int sock){
-    char *country, *fileName, *disease, *message, *messageSize;
+    char *fileName, *disease, *message, *messageSize;
     int numOfDirs, numOfFiles, numOfDiseases;
+    Node *listNode;
+    CountryListItem *countryListItem;
 
     /*read per country*/
     message = calloc(sizeof(char), readBufferSize+1);
@@ -96,8 +101,20 @@ bool receiveStats(int readBufferSize, int sock){
 
     for (int i = 0; i < numOfDirs; i++) {
         /*read actual message from fifo*/
-        country = calloc(sizeof(char), readBufferSize+1);
-        read(sock, country,readBufferSize+1);
+        countryListItem = calloc(sizeof(char), 1);
+        countryListItem->country = calloc(sizeof(char), readBufferSize+1);
+        read(sock, countryListItem->country,readBufferSize+1);
+        listNode = nodeInit(countryListItem->country);
+
+        /*critical section for worker struct*/
+        pthread_mutex_lock(&(whoServerManager->mtxW));
+
+        if(whoServerManager->workerItemArray[whoServerManager->workerArrayIndex].list == NULL)
+            whoServerManager->workerItemArray[whoServerManager->workerArrayIndex].list = linkedListInit(listNode);
+        else
+            push(listNode, whoServerManager->workerItemArray[whoServerManager->workerArrayIndex].list);
+
+        pthread_mutex_unlock(&(whoServerManager->mtxW));
 
         /*read per file*/
         messageSize = calloc(sizeof(char), readBufferSize+1);
@@ -108,7 +125,7 @@ bool receiveStats(int readBufferSize, int sock){
             /*read actual message from fifo*/
             fileName = calloc(sizeof(char), readBufferSize+1);
             read(sock, fileName,readBufferSize+1);
-            fprintf(stdout, "\n%s\n%s\n",fileName, country);
+            fprintf(stdout, "\n%s\n%s\n",fileName, countryListItem->country);
 
             /*read per disease*/
             messageSize = calloc(sizeof(char), readBufferSize+1);
@@ -125,7 +142,7 @@ bool receiveStats(int readBufferSize, int sock){
                     /*read actual message from fifo*/
                     message = calloc(sizeof(char), readBufferSize+1);
                     read(sock, message,readBufferSize+1);
-                    fprintf(stdout, "%s\n", message);
+                    //fprintf(stdout, "%s\n", message);
                     free(message);
                 }
 
@@ -137,7 +154,6 @@ bool receiveStats(int readBufferSize, int sock){
             }
             free(fileName);
         }
-        free(country);
     }
     message = calloc(sizeof(char), readBufferSize+1);
     read(sock, message,readBufferSize+1);
@@ -262,7 +278,7 @@ ThreadPool* initializeThreadpool(int numberOfThreads, CircularBuffer* buffer, ui
 
 
 // Initialize a socket with given port and ip:
-Socket* initializeSocket(uint16_t port, uint32_t ip, int type){
+Socket* initializeSocket(uint16_t port, int type){
     Socket* newSocket = calloc(sizeof(Socket), 1);
 
     if((newSocket->socket = socket(AF_INET , SOCK_STREAM , 0)) < 0){
@@ -277,7 +293,6 @@ Socket* initializeSocket(uint16_t port, uint32_t ip, int type){
     newSocket->serverptr=(struct sockaddr *)&(newSocket->socketAddressServer);
 
     // Set socket options:
-    unsigned int socklen = sizeof(int);
     newSocket->socketAddressServer.sin_family = AF_INET;
     newSocket->socketAddressServer.sin_addr.s_addr = htonl(INADDR_ANY);
     newSocket->socketAddressServer.sin_port = htons(port);
@@ -288,6 +303,11 @@ Socket* initializeSocket(uint16_t port, uint32_t ip, int type){
 void *workerThread(void* arg){
 
     ThreadPool* threadPool = (ThreadPool*)arg;
+    int readWorkers = 0;
+    int workerPort;
+    int numOfWorkers;
+    char* message;
+
     while (threadPool->end == 0){
 
         // Try to get lock:
@@ -297,7 +317,7 @@ void *workerThread(void* arg){
         while(circularBufSize(threadPool->circularBuffer) <= 0){
             pthread_cond_wait(&(threadPool->mutexCond), &(threadPool->mutexLock));
         }
-        printf ( " Thread % ld : Woke up \n " , pthread_self () ) ;
+        printf ( "Thread % ld : Woke up \n" , pthread_self () ) ;
 
         // If threadpool dead, get over it:
         if(threadPool->end == 1){
@@ -308,20 +328,43 @@ void *workerThread(void* arg){
         // Get an item from round buffer:
         int newSock;
         circularBufGet(threadPool->circularBuffer, &newSock);
-        // printf("New item: %d %d\n", item->IP, item->port);
         pthread_mutex_unlock(&(threadPool->mutexLock));
         pthread_cond_signal (&(threadPool->mutexCond));
 
-        char* message;
+        flockfile(stdout);
+
         message = calloc(sizeof(char*), MESSAGE_BUFFER);
         read(newSock, message, MESSAGE_BUFFER);
-        flockfile(stdout);
-        fprintf(stdout, "worker: %s\n", message);
+        workerPort = atoi(message);
+        fprintf(stdout, "Worker port: %s\n", message);
         free(message);
+
+        message = calloc(sizeof(char*), MESSAGE_BUFFER);
+        read(newSock, message, MESSAGE_BUFFER);
+        numOfWorkers = atoi(message);
+        free(message);
+
+        /*Get num of workers and initialize structures*/
+        pthread_mutex_lock(&(whoServerManager->mtxW));
+        if(readWorkers == 0){
+            whoServerManager->numOfWorkers = numOfWorkers;
+            whoServerManager->workerItemArray = calloc(sizeof(WorkerItem), whoServerManager->numOfWorkers);
+            readWorkers = whoServerManager->numOfWorkers;
+            whoServerManager->workerArrayIndex = 0;
+        }
+
+        whoServerManager->workerItemArray[whoServerManager->workerArrayIndex].workerPort = workerPort;
+        pthread_mutex_unlock(&(whoServerManager->mtxW));
+
         fprintf(stdout, "Receiving Statistics...\n");
         if(!receiveStats(MESSAGE_BUFFER, newSock)){
             fprintf(stderr, "Could not receive statistics\n");
         }
+
+        whoServerManager->workerArrayIndex++;
+
         funlockfile(stdout);
+
     }
+    return NULL;
 }

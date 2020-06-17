@@ -7,6 +7,8 @@
 
 #include <stdbool.h>
 #include <pthread.h>
+#include <netinet/in.h>
+#include "structs.h"
 
 #define MESSAGE_BUFFER 120
 
@@ -47,6 +49,10 @@ typedef struct Socket{
     int type;
 }Socket;
 
+typedef struct WorkerItem{
+    int workerPort;
+    struct List *list;
+}WorkerItem;
 
 typedef struct WhoServerManager{
     uint16_t queryPortNum;
@@ -54,7 +60,15 @@ typedef struct WhoServerManager{
     int numThreads;
     int bufferSize;
     Socket *sock;
+    int numOfWorkers;
+    WorkerItem *workerItemArray;
+    int workerArrayIndex;
+    pthread_mutex_t mtxW;
 }WhoServerManager;
+
+typedef struct CountryListItem{
+    char *country;
+}CountryListItem;
 
 enum Type{
     WORKER_SOCKET,
@@ -102,7 +116,7 @@ size_t circularBufSize(CircularBuffer *cbuf);
 
 ThreadPool* initializeThreadpool(int numberOfThreads, CircularBuffer* buffer, uint32_t ip, uint16_t port);
 
-Socket* initializeSocket(uint16_t port, uint32_t ip, int type);
+Socket* initializeSocket(uint16_t port, int type);
 
 void * workerThread(void* arg);
 

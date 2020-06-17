@@ -1,5 +1,5 @@
 CC	=	gcc
-FLAGS   =	-Wall	-g	-c	-D_POSIX_C_SOURCE=199309L
+FLAGS   =	-Wall	-g	-c
 
 all: master diseaseMonitor_worker whoClient whoServer
 
@@ -13,8 +13,8 @@ diseaseMonitor_worker:  worker.o data_io.o   redBlackTree.o  command_lib.o   has
 whoClient: whoClient.o
 	$(CC)	-o	whoClient	whoClient.o
 
-whoServer: whoServer.o	serverIO.o
-	$(CC)	-o whoServer	whoServer.o	serverIO.o	-lpthread
+whoServer: whoServer.o	serverIO.o	list_lib.o	data_io.o	redBlackTree.o	hashTable.o	diseaseAggregator.o	hashTable.o	communication.o	command_lib.o
+	$(CC)	-o whoServer	whoServer.o	serverIO.o	list_lib.o	data_io.o	redBlackTree.o	diseaseAggregator.o	hashTable.o	communication.o	command_lib.o	-lpthread
 
 whoServer.o: src/whoServer/whoServer.c
 	$(CC) $(FLAGS)	src/whoServer/whoServer.c

@@ -94,6 +94,12 @@ int main(int argc, char** argv){
         writeInFifoPipe(aggregatorMasterManager->workersArray[i].fd_client_w, message, (aggregatorMasterManager->bufferSize) + 1);
         free(message);
 
+        /*send serverPort address*/
+        message = calloc(sizeof(char), aggregatorMasterManager->bufferSize + 1);
+        sprintf(message, "%d", aggregatorMasterManager->numOfWorkers);
+        writeInFifoPipe(aggregatorMasterManager->workersArray[i].fd_client_w, message, (aggregatorMasterManager->bufferSize) + 1);
+        free(message);
+
         /*send the length of the data the worker has to read*/
         message = calloc(sizeof(char), aggregatorMasterManager->bufferSize + 1);
         sprintf(message, "%d", aggregatorMasterManager->directoryDistributor[i]->itemCount);
