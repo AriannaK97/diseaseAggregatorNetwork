@@ -12,6 +12,10 @@
 
 #define MESSAGE_BUFFER 120
 
+/**
+ * Structures
+ * */
+
 typedef struct ServerInputArgs{
     uint16_t queryPortNum;
     uint16_t statisticsPortNum;
@@ -75,11 +79,15 @@ enum Type{
     CLIENT_SOCKET
 };
 
-/*Global variables*/
-//ThreadPool *threadPool;
+/**
+ * Global variables
+ * */
 WhoServerManager *whoServerManager;
 
 
+/**
+ * Function Declaration
+ * */
 ServerInputArgs* getWhoServerArguments(int argc, char** argv);
 
 WhoServerManager* initializeWhoServerManager(ServerInputArgs* serverInputArgs);
