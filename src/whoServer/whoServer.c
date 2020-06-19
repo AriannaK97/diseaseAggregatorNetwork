@@ -12,8 +12,8 @@
 int main (int argc, char** argv){
 
     ServerInputArgs* serverInputArgs;
-    int newSock;
-    socklen_t clientlen;
+    int newSock, newSockClient;
+    socklen_t clientlen, workerlen;
 
     serverInputArgs = getWhoServerArguments(argc, argv);
     whoServerManager = initializeWhoServerManager(serverInputArgs);
@@ -27,27 +27,33 @@ int main (int argc, char** argv){
 
 
     /* Create socket for statistics, then bind it to address and start listening to it*/
-    whoServerManager->sock = initializeSocket(whoServerManager->statisticsPortNum, WORKER_SOCKET);
+    whoServerManager->serverSocket = initializeSocket(whoServerManager->statisticsPortNum);
+    whoServerManager->clientSocket = initializeSocket(whoServerManager->queryPortNum);
 
-    if (bind(whoServerManager->sock->socket, whoServerManager->sock->serverptr, sizeof(whoServerManager->sock->socketAddressServer)) < 0)
+    if (bind(whoServerManager->serverSocket->socket, (struct sockaddr *)&(whoServerManager->serverSocket->socketAddressServer), sizeof(whoServerManager->serverSocket->socketAddressServer)) < 0)
         perror_exit("bind");
 
-    if (listen(whoServerManager->sock->socket, whoServerManager->numThreads) < 0)
+    if (listen(whoServerManager->serverSocket->socket, whoServerManager->numThreads) < 0)
         perror_exit("listen");
     printf("Listening for connections to port %d\n", whoServerManager->statisticsPortNum);
 
 
     while (1) {
         /* accept connection */
-        if ((newSock = accept((whoServerManager->sock->socket), whoServerManager->sock->clientptr, &clientlen)) < 0)
+        workerlen = sizeof(whoServerManager->serverSocket->socketAddressClient);
+        if ((newSock = accept((whoServerManager->serverSocket->socket), (struct sockaddr *)&(whoServerManager->serverSocket->socketAddressClient), &workerlen)) < 0)
             perror_exit("accept");
 
-        printf("Accepted connection\n");
+        workerlen = sizeof(whoServerManager->clientSocket->socketAddressClient);
+        if((newSockClient = accept((whoServerManager->clientSocket->socket), (struct sockaddr *)&(whoServerManager->clientSocket->socketAddressClient), &clientlen) < 0))
+            perror_exit("accept client");
+
+        fprintf(stdout,"WhoServer accepted connection to worker\n");
 
         pthread_mutex_lock(&(threadPool->mutexLock));
         fprintf(stdout,"\n------------------------\n");
         fprintf(stdout,"\nGained lock to add item.\n");
-        circularBufPut(threadPool->circularBuffer, newSock);
+        circularBufPut(threadPool->circularBuffer, newSock, WORKER_SOCKET);
         pthread_mutex_unlock(&(threadPool->mutexLock));
         pthread_cond_signal (&(threadPool->mutexCond));
 

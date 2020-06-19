@@ -10,14 +10,23 @@ diseaseMonitor_worker:  worker.o data_io.o   redBlackTree.o  command_lib.o   has
 	$(CC)   -o	diseaseMonitor_worker	worker.o data_io.o   redBlackTree.o  command_lib.o   hashTable.o list_lib.o	diseaseAggregator.o	communication.o
 	$(CC)   -o	diseaseMonitor_worker	worker.o data_io.o   redBlackTree.o  command_lib.o   hashTable.o list_lib.o	diseaseAggregator.o	communication.o
 
-whoClient: whoClient.o
-	$(CC)	-o	whoClient	whoClient.o
+whoClient: whoClient.o	whoClientIO.o	whoClientCircularBuffer.o
+	$(CC)	-o	whoClient	whoClient.o	whoClientIO.o	whoClientCircularBuffer.o	-lpthread
 
-whoServer: whoServer.o	serverIO.o	list_lib.o	data_io.o	redBlackTree.o	hashTable.o	diseaseAggregator.o	hashTable.o	communication.o	command_lib.o
-	$(CC)	-o whoServer	whoServer.o	serverIO.o	list_lib.o	data_io.o	redBlackTree.o	diseaseAggregator.o	hashTable.o	communication.o	command_lib.o	-lpthread
+whoServer: whoServer.o	serverIO.o	list_lib.o	data_io.o	redBlackTree.o	hashTable.o	diseaseAggregator.o	hashTable.o	communication.o	command_lib.o	whoServerCircularBuffer.o
+	$(CC)	-o whoServer	whoServer.o	serverIO.o	list_lib.o	data_io.o	redBlackTree.o	diseaseAggregator.o	hashTable.o	communication.o	command_lib.o	whoServerCircularBuffer.o	-lpthread
 
 whoServer.o: src/whoServer/whoServer.c
 	$(CC) $(FLAGS)	src/whoServer/whoServer.c
+
+whoServerCircularBuffer.o: src/whoServer/whoServerCircularBuffer.c
+	$(CC) $(FLAGS)	src/whoServer/whoServerCircularBuffer.c
+
+whoClientCircularBuffer.o: src/whoClient/whoClientCircularBuffer.c
+	$(CC) $(FLAGS)	src/whoClient/whoClientCircularBuffer.c
+
+whoClientIO.o: src/whoClient/whoClientIO.c
+	$(CC)	$(FLAGS)	src/whoClient/whoClientIO.c
 
 serverIO.o: src/whoServer/serverIO.c
 	$(CC)	$(FLAGS)	src/whoServer/serverIO.c

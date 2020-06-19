@@ -110,7 +110,7 @@ void DiseaseAggregatorServerManager(AggregatorServerManager* aggregatorServerMan
 
 bool sendStatistics(int sock);
 
-//bool receiveStats(int readBufferSize, int sock);
+//bool receiveStats(int readBufferSize, int serverSocket);
 
 void exitAggregator(AggregatorServerManager* aggregatorServerManager);
 

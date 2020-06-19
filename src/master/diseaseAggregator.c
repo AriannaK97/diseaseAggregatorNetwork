@@ -262,7 +262,7 @@ void deallockWorkerInfo(WorkerInfo* workerInfo){
 }
 
 /*
-bool receiveStats(int readBufferSize,int sock){
+bool receiveStats(int readBufferSize,int serverSocket){
     char *country, *fileName, *disease, *message, *messageSize;
     int numOfDirs, numOfFiles, numOfDiseases;
 
@@ -270,7 +270,7 @@ bool receiveStats(int readBufferSize,int sock){
 /*read per country*//*
 
     message = calloc(sizeof(char), readBufferSize + 1);
-    readFromFifoPipe(sock, message, readBufferSize+1);
+    readFromFifoPipe(serverSocket, message, readBufferSize+1);
     numOfDirs = atoi(message);
     free(message);
 
@@ -280,13 +280,13 @@ bool receiveStats(int readBufferSize,int sock){
 /*read actual message from fifo*//*
 
         country = calloc(sizeof(char), readBufferSize+1);
-        readFromFifoPipe(sock, country,readBufferSize+1);
+        readFromFifoPipe(serverSocket, country,readBufferSize+1);
 
         */
 /*read per file*//*
 
         messageSize = calloc(sizeof(char), readBufferSize + 1);
-        readFromFifoPipe(sock, messageSize, readBufferSize+1);
+        readFromFifoPipe(serverSocket, messageSize, readBufferSize+1);
         numOfFiles = atoi(messageSize);
         free(messageSize);
         for (int j = 0; j < numOfFiles; j++) {
@@ -295,14 +295,14 @@ bool receiveStats(int readBufferSize,int sock){
 /*read actual message from fifo*//*
 
             fileName = calloc(sizeof(char), readBufferSize+1);
-            readFromFifoPipe(sock, fileName,readBufferSize+1);
+            readFromFifoPipe(serverSocket, fileName,readBufferSize+1);
             fprintf(stdout, "\n%s\n%s\n",fileName, country);
 
             */
 /*read per disease*//*
 
             messageSize = calloc(sizeof(char), readBufferSize + 1);
-            readFromFifoPipe(sock, messageSize, readBufferSize+1);
+            readFromFifoPipe(serverSocket, messageSize, readBufferSize+1);
             numOfDiseases = atoi(messageSize);
             free(messageSize);
             for (int k = 0; k < numOfDiseases; k++) {
@@ -310,7 +310,7 @@ bool receiveStats(int readBufferSize,int sock){
 /*read actual message from fifo*//*
 
                 disease = calloc(sizeof(char), readBufferSize+1);
-                readFromFifoPipe(sock, disease,readBufferSize+1);
+                readFromFifoPipe(serverSocket, disease,readBufferSize+1);
                 fprintf(stdout, "%s\n", disease);
 
                 for (int l = 0; l < 4; l++) {
@@ -318,7 +318,7 @@ bool receiveStats(int readBufferSize,int sock){
 /*read actual message from fifo*//*
 
                     message = calloc(sizeof(char), readBufferSize+1);
-                    readFromFifoPipe(sock, message,readBufferSize+1);
+                    readFromFifoPipe(serverSocket, message,readBufferSize+1);
                     fprintf(stdout, "%s\n", message);
                     free(message);
                 }
@@ -327,7 +327,7 @@ bool receiveStats(int readBufferSize,int sock){
 /*read actual message from fifo*//*
 
                 message = calloc(sizeof(char), readBufferSize+1);
-                readFromFifoPipe(sock, message,readBufferSize+1);
+                readFromFifoPipe(serverSocket, message,readBufferSize+1);
                 free(message);
                 free(disease);
             }
@@ -336,7 +336,7 @@ bool receiveStats(int readBufferSize,int sock){
         free(country);
     }
     message = calloc(sizeof(char), readBufferSize+1);
-    readFromFifoPipe(sock, message,readBufferSize+1);
+    readFromFifoPipe(serverSocket, message,readBufferSize+1);
     free(message);
     return true;
 }

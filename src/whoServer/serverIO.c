@@ -125,7 +125,7 @@ bool receiveStats(int readBufferSize, int sock){
             /*read actual message from fifo*/
             fileName = calloc(sizeof(char), readBufferSize+1);
             read(sock, fileName,readBufferSize+1);
-            fprintf(stdout, "\n%s\n%s\n",fileName, countryListItem->country);
+            //fprintf(stdout, "\n%s\n%s\n",fileName, countryListItem->country);
 
             /*read per disease*/
             messageSize = calloc(sizeof(char), readBufferSize+1);
@@ -136,7 +136,7 @@ bool receiveStats(int readBufferSize, int sock){
                 /*read actual message from fifo*/
                 disease = calloc(sizeof(char), readBufferSize+1);
                 read(sock, disease,readBufferSize+1);
-                fprintf(stdout, "%s\n", disease);
+                //fprintf(stdout, "%s\n", disease);
 
                 for (int l = 0; l < 4; l++) {
                     /*read actual message from fifo*/
@@ -162,96 +162,6 @@ bool receiveStats(int readBufferSize, int sock){
 }
 
 
-CircularBuffer* circularBufInit(size_t bufferSize){
-    CircularBuffer* cbuf = calloc(sizeof(CircularBuffer), 1);
-
-    cbuf->buffer = calloc(sizeof(int), bufferSize);
-    cbuf->max = bufferSize;
-    circularBufReset(cbuf);
-
-    return cbuf;
-}
-
-void circularBufFree(CircularBuffer *cbuf){
-    free(cbuf);
-}
-
-void circularBufReset(CircularBuffer *cbuf){
-    cbuf->head = 0;
-    cbuf->tail = 0;
-    cbuf->full = false;
-}
-
-void advancePointer(CircularBuffer *cbuf){
-    if(cbuf->full){
-        cbuf->tail = (cbuf->tail + 1) % cbuf->max;
-    }
-    cbuf->head = (cbuf->head + 1) % cbuf->max;
-    cbuf->full = (cbuf->head == cbuf->tail);
-}
-
-void retreatPointer(CircularBuffer *cbuf){
-    cbuf->full = false;
-    cbuf->tail = (cbuf->tail + 1) % cbuf->max;
-}
-
-void circularBufPut(CircularBuffer *cbuf, int data){
-    cbuf->buffer[cbuf->head] = data;
-    advancePointer(cbuf);
-}
-
-int circularBufPut2(CircularBuffer *cbuf, int data){
-    int r = -1;
-
-    if(!circularBufFull(cbuf)){
-        cbuf->buffer[cbuf->head] = data;
-        advancePointer(cbuf);
-        r = 0;
-    }
-
-    return r;
-}
-
-int circularBufGet(CircularBuffer *cbuf, int *data){
-
-    int r = -1;
-
-    if(!circularBufEmpty(cbuf)){
-        *data = cbuf->buffer[cbuf->tail];
-        retreatPointer(cbuf);
-
-        r = 0;
-    }
-
-    return r;
-
-}
-
-bool circularBufEmpty(CircularBuffer *cbuf){
-    return (!cbuf->full && (cbuf->head == cbuf->tail));
-}
-
-bool circularBufFull(CircularBuffer *cbuf){
-    return cbuf->full;
-}
-
-size_t circularBufCapacity(CircularBuffer *cbuf){
-    return cbuf->max;
-}
-
-size_t circularBufSize(CircularBuffer *cbuf){
-    size_t size = cbuf->max;
-
-    if(!cbuf->full){
-        if(cbuf->head >= cbuf->tail){
-            size = (cbuf->head - cbuf->tail);
-        }else{
-            size = (cbuf->max + cbuf->head - cbuf->tail);
-        }
-    }
-
-    return size;
-}
 
 ThreadPool* initializeThreadpool(int numberOfThreads, CircularBuffer* buffer, uint32_t ip, uint16_t port){
     // Int new threadpool:
@@ -278,19 +188,13 @@ ThreadPool* initializeThreadpool(int numberOfThreads, CircularBuffer* buffer, ui
 
 
 // Initialize a socket with given port and ip:
-Socket* initializeSocket(uint16_t port, int type){
+Socket* initializeSocket(uint16_t port){
     Socket* newSocket = calloc(sizeof(Socket), 1);
 
     if((newSocket->socket = socket(AF_INET , SOCK_STREAM , 0)) < 0){
         perror("Error creating socket.");
         exit(EXIT_FAILURE);
     }
-
-    /*set the socket type*/
-    newSocket->type = type;
-
-    newSocket->clientptr=(struct sockaddr *)&(newSocket->socketAddressClient);
-    newSocket->serverptr=(struct sockaddr *)&(newSocket->socketAddressServer);
 
     // Set socket options:
     newSocket->socketAddressServer.sin_family = AF_INET;
@@ -319,7 +223,7 @@ void *workerThread(void* arg){
         }
         printf ( "Thread % ld : Woke up \n" , pthread_self () ) ;
 
-        // If threadpool dead, get over it:
+        // If threadpool dead
         if(threadPool->end == 1){
             pthread_mutex_unlock(&(threadPool->mutexLock));
             break;
@@ -327,41 +231,52 @@ void *workerThread(void* arg){
 
         // Get an item from round buffer:
         int newSock;
-        circularBufGet(threadPool->circularBuffer, &newSock);
+        FileDescriptor fileDescriptor;
+        circularBufGet(threadPool->circularBuffer, &fileDescriptor);
+        newSock = fileDescriptor.fd;
+        //printf("%d, %d\n", newSock, fileDescriptor.type);
         pthread_mutex_unlock(&(threadPool->mutexLock));
         pthread_cond_signal (&(threadPool->mutexCond));
 
         flockfile(stdout);
 
-        message = calloc(sizeof(char*), MESSAGE_BUFFER);
-        read(newSock, message, MESSAGE_BUFFER);
-        workerPort = atoi(message);
-        fprintf(stdout, "Worker port: %s\n", message);
-        free(message);
+        /**
+         * The socket comes from the worker thus we proceed to receiving the
+         * statistics and the data needed from this connection
+         */
 
-        message = calloc(sizeof(char*), MESSAGE_BUFFER);
-        read(newSock, message, MESSAGE_BUFFER);
-        numOfWorkers = atoi(message);
-        free(message);
+        if(fileDescriptor.type == 0) {
 
-        /*Get num of workers and initialize structures*/
-        pthread_mutex_lock(&(whoServerManager->mtxW));
-        if(readWorkers == 0){
-            whoServerManager->numOfWorkers = numOfWorkers;
-            whoServerManager->workerItemArray = calloc(sizeof(WorkerItem), whoServerManager->numOfWorkers);
-            readWorkers = whoServerManager->numOfWorkers;
-            whoServerManager->workerArrayIndex = 0;
+            message = calloc(sizeof(char *), MESSAGE_BUFFER);
+            read(newSock, message, MESSAGE_BUFFER);
+            workerPort = atoi(message);
+            fprintf(stdout, "Worker port: %s\n", message);
+            free(message);
+
+            message = calloc(sizeof(char *), MESSAGE_BUFFER);
+            read(newSock, message, MESSAGE_BUFFER);
+            numOfWorkers = atoi(message);
+            free(message);
+
+            /*Get num of workers and initialize structures*/
+            pthread_mutex_lock(&(whoServerManager->mtxW));
+            if (readWorkers == 0) {
+                whoServerManager->numOfWorkers = numOfWorkers;
+                whoServerManager->workerItemArray = calloc(sizeof(WorkerItem), whoServerManager->numOfWorkers);
+                readWorkers = whoServerManager->numOfWorkers;
+                whoServerManager->workerArrayIndex = 0;
+            }
+
+            whoServerManager->workerItemArray[whoServerManager->workerArrayIndex].workerPort = workerPort;
+            pthread_mutex_unlock(&(whoServerManager->mtxW));
+
+            fprintf(stdout, "Receiving Statistics...\n");
+            if (!receiveStats(MESSAGE_BUFFER, newSock)) {
+                fprintf(stderr, "Could not receive statistics\n");
+            }
+
+            whoServerManager->workerArrayIndex++;
         }
-
-        whoServerManager->workerItemArray[whoServerManager->workerArrayIndex].workerPort = workerPort;
-        pthread_mutex_unlock(&(whoServerManager->mtxW));
-
-        fprintf(stdout, "Receiving Statistics...\n");
-        if(!receiveStats(MESSAGE_BUFFER, newSock)){
-            fprintf(stderr, "Could not receive statistics\n");
-        }
-
-        whoServerManager->workerArrayIndex++;
 
         funlockfile(stdout);
 
