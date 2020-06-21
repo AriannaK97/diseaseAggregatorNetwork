@@ -49,7 +49,7 @@ int main(int argc, char** argv){
 
     aggregatorMasterManager->bufferSize = arguments->bufferSize;
     aggregatorMasterManager->numOfWorkers = arguments->numWorkers;
-    aggregatorMasterManager->input_dir = calloc(sizeof(char), DIR_LEN);
+    aggregatorMasterManager->input_dir = calloc(sizeof(char), MESSAGE_BUFFER);
     aggregatorMasterManager->serverIP = calloc(sizeof(char), aggregatorMasterManager->bufferSize);
     strcpy(aggregatorMasterManager->serverIP, arguments->serverIP);
     aggregatorMasterManager->serverPort = arguments->serverPort;
@@ -76,8 +76,8 @@ int main(int argc, char** argv){
         }
 
         aggregatorMasterManager->workersArray[i].workerPid = pid;
-        aggregatorMasterManager->workersArray[i].serverFileName = (char*)malloc(sizeof(char) * DIR_LEN);
-        aggregatorMasterManager->workersArray[i].workerFileName = (char*)malloc(sizeof(char) * DIR_LEN);
+        aggregatorMasterManager->workersArray[i].serverFileName = (char*)malloc(sizeof(char) * MESSAGE_BUFFER);
+        aggregatorMasterManager->workersArray[i].workerFileName = (char*)malloc(sizeof(char) * MESSAGE_BUFFER);
 
 
         /*make fifo pipe for master*/

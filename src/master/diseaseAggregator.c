@@ -17,8 +17,8 @@ AggregatorServerManager* readDirectoryFiles(AggregatorInputArguments* arguments)
     DIR* FD;
     DIR* SubFD;
     struct dirent* in_dir;
-    char *dirPath = (char*)malloc(DIR_LEN*sizeof(char));
-    char *subDirPath = (char*)malloc(DIR_LEN*sizeof(char));
+    char *dirPath = (char*)malloc(MESSAGE_BUFFER*sizeof(char));
+    char *subDirPath = (char*)malloc(MESSAGE_BUFFER*sizeof(char));
     //AggregatorServerManager* aggregatorManager;
     int distributionPointer = 0;
     DirListItem* newItem = NULL;
@@ -194,41 +194,41 @@ bool sendStatistics(int sock) {
     char* message;
 
     /*write the number of directories that will send stats to follow to fifo*/
-    message = calloc(sizeof(char), (cmdManager->bufferSize)+1);
+    message = calloc(sizeof(char), MESSAGE_BUFFER+1);
     sprintf(message, "%d", cmdManager->numOfDirectories);
-    write(sock, message, (cmdManager->bufferSize)+1);
+    write(sock, message, MESSAGE_BUFFER+1);
     free(message);
 
     /*send statistics*/
     for (int i = 0; i < cmdManager->numOfDirectories; i++) {
         /*write the country*/
-        write(sock, cmdManager->fileExplorer[i]->country, (cmdManager->bufferSize)+1);
+        write(sock, cmdManager->fileExplorer[i]->country, MESSAGE_BUFFER+1);
 
         /*write number of files for the country*/
-        messageSize = calloc(sizeof(char), (cmdManager->bufferSize)+1);
+        messageSize = calloc(sizeof(char), MESSAGE_BUFFER+1);
         sprintf(messageSize, "%d", cmdManager->fileExplorer[i]->fileArraySize);
-        write(sock, messageSize, (cmdManager->bufferSize)+1);
+        write(sock, messageSize, MESSAGE_SIZE);
         free(messageSize);
 
         for (int j = 0; j < cmdManager->fileExplorer[i]->fileArraySize; j++) {
             /*write the file name*/
-            write(sock, cmdManager->fileExplorer[i]->fileItemsArray[j].fileName, (cmdManager->bufferSize)+1);
+            write(sock, cmdManager->fileExplorer[i]->fileItemsArray[j].fileName, MESSAGE_BUFFER+1);
 
             /*write number of diseases for the country*/
-            messageSize = calloc(sizeof(char), (cmdManager->bufferSize)+1);
+            messageSize = calloc(sizeof(char), MESSAGE_BUFFER+1);
             sprintf(messageSize, "%d", cmdManager->fileExplorer[i]->fileItemsArray[j].numOfDiseases);
-            write(sock, messageSize, (cmdManager->bufferSize)+1);
+            write(sock, messageSize, MESSAGE_BUFFER+1);
             free(messageSize);
 
             for (int k = 0; k < cmdManager->fileExplorer[i]->fileItemsArray[j].numOfDiseases; k++) {
                 /*write disease*/
 
-                write(sock, cmdManager->fileExplorer[i]->fileItemsArray[j].fileDiseaseStats[k]->disease, (cmdManager->bufferSize)+1);
+                write(sock, cmdManager->fileExplorer[i]->fileItemsArray[j].fileDiseaseStats[k]->disease, MESSAGE_BUFFER+1);
 
                 /*write stats for age ranges*/
                 for (int l = 0; l < 4; l++) {
 
-                    message = calloc(sizeof(char), (cmdManager->bufferSize) + 1);
+                    message = calloc(sizeof(char), MESSAGE_BUFFER + 1);
 
                     if(l == 0){
                         sprintf(message, "Age range 0-20 years: %d cases", cmdManager->fileExplorer[i]->fileItemsArray[j].fileDiseaseStats[k]->AgeRangeCasesArray[l]);
@@ -240,18 +240,18 @@ bool sendStatistics(int sock) {
                         sprintf(message, "Age range 60+ years: %d cases", cmdManager->fileExplorer[i]->fileItemsArray[j].fileDiseaseStats[k]->AgeRangeCasesArray[l]);
                     }
 
-                    write(sock, message,(cmdManager->bufferSize)+1);
+                    write(sock, message,MESSAGE_BUFFER+1);
                     free(message);
                 }
 
                 /*end of stat batch*/
-                write(sock, "next",(cmdManager->bufferSize)+1);
+                write(sock, "next",MESSAGE_BUFFER+1);
             }
         }
     }
 
     /*send end of transmission message*/
-    write(sock, "StatsDone", (cmdManager->bufferSize)+1);
+    write(sock, "StatsDone", MESSAGE_BUFFER+1);
     return true;
 }
 
@@ -353,7 +353,7 @@ AggregatorInputArguments* getAggregatorInputArgs(int argc, char** argv){
     }
     for (int i = 1; i < argc; i += 2) {
         if (strcmp(argv[i], "-i") == 0) {
-            arguments->input_dir = calloc(sizeof(char), DIR_LEN);
+            arguments->input_dir = calloc(sizeof(char), MESSAGE_BUFFER);
             strcpy(arguments->input_dir, argv[i + 1]);
             numOfArgs += 2;
         } else if (strcmp(argv[i], "-w") == 0) {
@@ -503,6 +503,7 @@ void commandServer(CmdManager* manager) {
 
 
     do{
+        clientlen = (struct sockaddr *)&(cmdManager->workerptr);
         if ((cmdManager->newSock = accept((cmdManager->workerSock), cmdManager->workerptr, &clientlen)) < 0) {
             perror("Accept worker");
             exit(1);

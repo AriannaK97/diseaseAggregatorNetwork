@@ -86,8 +86,8 @@ int main(int argc, char** argv) {
 
 
         newNodeItem = (DirListItem*)malloc(sizeof(struct DirListItem));
-        newNodeItem->dirName = (char*)malloc(sizeof(char)*DIR_LEN);
-        newNodeItem->dirPath = (char*)malloc(sizeof(char)*DIR_LEN);
+        newNodeItem->dirName = (char*)malloc(sizeof(char)*MESSAGE_SIZE);
+        newNodeItem->dirPath = (char*)malloc(sizeof(char)*MESSAGE_SIZE);
 
         memcpy(newNodeItem->dirName, message, messageSize+1);
         strcpy(newNodeItem->dirPath, arguments->input_dir);
@@ -162,14 +162,15 @@ int main(int argc, char** argv) {
 
     cmdManager->workerPort = htonl(client.sin_port);
     /*send port*/
-    message = (char*)calloc(sizeof(char),DIR_LEN);
+    message = (char*)calloc(sizeof(char),MESSAGE_BUFFER);
     sprintf(message, "%d", cmdManager->workerPort);
-    write(cmdManager->sock, message, cmdManager->bufferSize);
+    write(cmdManager->sock, message, MESSAGE_BUFFER);
     free(message);
+
     /*send num of workers*/
-    message = (char*)calloc(sizeof(char),DIR_LEN);
+    message = (char*)calloc(sizeof(char),MESSAGE_BUFFER);
     sprintf(message, "%d", cmdManager->numOfWorkers);
-    write(cmdManager->sock, message, cmdManager->bufferSize);
+    write(cmdManager->sock, message, MESSAGE_BUFFER);
     free(message);
 
     if(!sendStatistics(cmdManager->sock)){
@@ -178,7 +179,7 @@ int main(int argc, char** argv) {
 
     /* Initiate connection for worker port*/
     cmdManager->workerptr = (struct sockaddr*)&client;
-    if (listen(cmdManager->workerSock, 5) < 0){
+    if (listen(cmdManager->workerSock, 100) < 0){
         perror("Listen worker");
         exit(1);
     }

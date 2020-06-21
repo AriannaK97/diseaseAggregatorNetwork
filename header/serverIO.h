@@ -11,7 +11,7 @@
 #include "structs.h"
 #include "whoServerCircularBuffer.h"
 
-#define MESSAGE_BUFFER 120
+#define MESSAGE_BUFFER 224
 
 /**
  * Structures
@@ -56,8 +56,12 @@ typedef struct WhoServerManager{
     Socket *serverSocket;
     Socket *clientSocket;
     int numOfWorkers;
+    int numOfWorkersEnd;
+    bool waitClient;
+    int numOfClients;
     WorkerItem *workerItemArray;
     int workerArrayIndex;
+    int clientArrayIndex;
     pthread_mutex_t mtxW;
 }WhoServerManager;
 

@@ -12,8 +12,8 @@
 #include "redBlackTree.h"
 #include "diseaseAggregator.h"
 
-#define DATA_SPACE 54
-#define DIR_LEN 256
+#define DATA_SPACE 224
+#define MESSAGE_SIZE 224
 
 #define SEARCH 1
 #define PRINT 2

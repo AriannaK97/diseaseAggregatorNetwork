@@ -45,7 +45,7 @@ MonitorInputArguments* getMonitorInputArgs(int argc, char** argv){
         } else if (i == 4) {
             arguments->bucketSize = atoi(argv[i]);
         } else if (i == 5){
-            arguments->input_dir = (char*)malloc(sizeof(char)*DIR_LEN);
+            arguments->input_dir = (char*)malloc(sizeof(char)*MESSAGE_BUFFER);
             strcpy(arguments->input_dir, argv[i]);
         } else if(i == 6){
             arguments->workerId = atoi(argv[i]);
@@ -186,11 +186,11 @@ CmdManager* initializeStructures(MonitorInputArguments *monitorInputArguments){
     cmdManager = malloc(sizeof(struct CmdManager));
 
     cmdManager->patientList = NULL;
-    cmdManager->input_dir = (char*)malloc(sizeof(char)*DIR_LEN);
+    cmdManager->input_dir = (char*)malloc(sizeof(char)*MESSAGE_BUFFER);
     strcpy(cmdManager->input_dir, monitorInputArguments->input_dir);
     cmdManager->workerInfo = malloc(sizeof(WorkerInfo));
-    cmdManager->workerInfo->serverFileName = malloc(sizeof(char)*DIR_LEN);
-    cmdManager->workerInfo->workerFileName = malloc(sizeof(char)*DIR_LEN);
+    cmdManager->workerInfo->serverFileName = malloc(sizeof(char)*MESSAGE_BUFFER);
+    cmdManager->workerInfo->workerFileName = malloc(sizeof(char)*MESSAGE_BUFFER);
     cmdManager->workerLog = malloc(sizeof(WorkerLog));
     cmdManager->workerLog->fails = 0;
     cmdManager->workerLog->successes = 0;
@@ -371,7 +371,7 @@ CmdManager* read_directory_list(CmdManager* cmdManager){
         /*count the number of date files in the subdirectory*/
         cmdManager->fileExplorer[dirNum]->fileArraySize = countFilesInDirectory(FD);
 
-        cmdManager->fileExplorer[dirNum]->country = calloc(sizeof(char), DIR_LEN);
+        cmdManager->fileExplorer[dirNum]->country = calloc(sizeof(char), MESSAGE_BUFFER);
         cmdManager->fileExplorer[dirNum]->successfulEntries = 0;
         cmdManager->fileExplorer[dirNum]->failedEntries = 0;
 
