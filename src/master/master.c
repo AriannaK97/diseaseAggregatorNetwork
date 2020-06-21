@@ -50,7 +50,7 @@ int main(int argc, char** argv){
     aggregatorMasterManager->bufferSize = arguments->bufferSize;
     aggregatorMasterManager->numOfWorkers = arguments->numWorkers;
     aggregatorMasterManager->input_dir = calloc(sizeof(char), MESSAGE_BUFFER);
-    aggregatorMasterManager->serverIP = calloc(sizeof(char), aggregatorMasterManager->bufferSize);
+    aggregatorMasterManager->serverIP = calloc(sizeof(char), MESSAGE_BUFFER);
     strcpy(aggregatorMasterManager->serverIP, arguments->serverIP);
     aggregatorMasterManager->serverPort = arguments->serverPort;
     strcpy(aggregatorMasterManager->input_dir, arguments->input_dir);
@@ -139,7 +139,7 @@ int main(int argc, char** argv){
         free(message);*/
     }
 
-    //DiseaseAggregatorServerManager(aggregatorMasterManager);
+    DiseaseAggregatorServerManager(aggregatorMasterManager);
 
 
     return 0;

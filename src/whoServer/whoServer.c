@@ -20,9 +20,6 @@ int main (int argc, char** argv){
     int newSock;
     int newSockClient = -1;
     socklen_t clientlen, workerlen;
-    struct pollfd pfds[SOCKET_NUM];
-    char* message;
-    int pollRet;
 
     serverInputArgs = getWhoServerArguments(argc, argv);
     whoServerManager = initializeWhoServerManager(serverInputArgs);
@@ -57,60 +54,66 @@ int main (int argc, char** argv){
     fprintf(stdout,"Listening for connections to port %d\n", whoServerManager->queryPortNum);
 
 
-    while (1) {
-        /* accept connections */
+    while (1){
 
-        //fprintf(stderr, "#########%d\n", whoServerManager->numOfWorkersEnd);
+        while ((whoServerManager->numOfWorkers) < (whoServerManager->numOfWorkersEnd)) {
 
-        workerlen = sizeof(whoServerManager->serverSocket->socketAddressClient);
-        if ((newSock = accept((whoServerManager->serverSocket->socket),
-                              (struct sockaddr *) &(whoServerManager->serverSocket->socketAddressClient),
-                              &workerlen)) < 0)
-            perror_exit("accept");
+            /* accept connections */
 
-        flockfile(stdout);
-        fprintf(stdout, "WhoServer accepted connection to worker\n");
+            workerlen = sizeof(whoServerManager->serverSocket->socketAddressClient);
+            if ((newSock = accept((whoServerManager->serverSocket->socket),
+                                  (struct sockaddr *) &(whoServerManager->serverSocket->socketAddressClient),
+                                  &workerlen)) < 0)
+                perror_exit("accept");
 
-        pthread_mutex_lock(&(threadPool->mutexLock));
-        fprintf(stdout, "\nGained lock to add item.\n");
-        circularBufPut(threadPool->circularBuffer, newSock, WORKER_SOCKET);
-        pthread_cond_signal(&(threadPool->mutexCond));
-        pthread_mutex_unlock(&(threadPool->mutexLock));
 
-        funlockfile(stdout);
+            flockfile(stdout);
+            fprintf(stdout, "WhoServer accepted connection to worker\n");
 
-        pthread_mutex_lock(&(whoServerManager->mtxW));
-        if ((whoServerManager->numOfWorkers) == (whoServerManager->numOfWorkersEnd)) {
-            pthread_mutex_unlock(&(whoServerManager->mtxW));
-            break;
+            pthread_mutex_lock(&(threadPool->mutexLock));
+
+            fprintf(stdout, "\nGained lock to add item.\n");
+            circularBufPut(threadPool->circularBuffer, newSock, WORKER_SOCKET);
+
+            pthread_cond_signal(&(threadPool->mutexCond));
+            pthread_mutex_unlock(&(threadPool->mutexLock));
+
+            funlockfile(stdout);
+
         }
-        pthread_mutex_unlock(&(whoServerManager->mtxW));
+
+        while(whoServerManager->waitClient==true){
+
+            flockfile(stdout);
+            fprintf(stderr, "\nWaiting queries from client\n");
+
+            clientlen = sizeof(whoServerManager->clientSocket->socketAddressClient);
+            while(1){
+                newSockClient = accept((whoServerManager->clientSocket->socket),(struct sockaddr *) &(whoServerManager->clientSocket->socketAddressClient),&clientlen);
+                if (newSockClient < 0)
+                    perror_exit("accept client");
+                else if(newSockClient == 0){
+                    continue;
+                }
+                else {
+                    fprintf(stdout, "WhoServer accepted connection to client %d\n", newSockClient);
+                    break;
+                }
+            }
+
+            pthread_mutex_lock(&(threadPool->mutexLock));
+
+            fprintf(stderr, "\n------------------------\n");
+            fprintf(stderr, "\nGained lock to add item of type client socket.\n");
+            circularBufPut(threadPool->circularBuffer, newSockClient, CLIENT_SOCKET);
+            fprintf(stdout, "whoServer %d\n", newSockClient);
+            funlockfile(stdout);
+            pthread_cond_signal(&(threadPool->mutexCond));
+            pthread_mutex_unlock(&(threadPool->mutexLock));
+
+        }
 
     }
-
-    fprintf(stderr, "\nWaiting queries from client\n");
-
-    while(1){
-
-        flockfile(stdout);
-
-        clientlen = sizeof(whoServerManager->clientSocket->socketAddressClient);
-        if ((newSockClient = accept((whoServerManager->clientSocket->socket),
-                                    (struct sockaddr *) &(whoServerManager->clientSocket->socketAddressClient),
-                                    &clientlen) < 0))
-            perror_exit("accept client");
-
-        fprintf(stdout, "WhoServer accepted connection to client %d\n", newSockClient);
-
-        pthread_mutex_lock(&(threadPool->mutexLock));
-        fprintf(stderr, "\n------------------------\n");
-        fprintf(stderr, "\nGained lock to add item of type client socket.\n");
-        circularBufPut(threadPool->circularBuffer, newSockClient, CLIENT_SOCKET);
-        pthread_cond_signal(&(threadPool->mutexCond));
-        pthread_mutex_unlock(&(threadPool->mutexLock));
-        funlockfile(stdout);
-    }
-
 
 }
 

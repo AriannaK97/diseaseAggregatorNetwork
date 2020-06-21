@@ -116,7 +116,6 @@ int main(int argc, char** argv) {
     struct sockaddr_in server, client;
     struct sockaddr *serverptr;
     struct in_addr myaddress;
-    socklen_t workerlen;
 
     if ((cmdManager->sock = socket(AF_INET, SOCK_STREAM, 0)) < 0){
         perror("Server socket");
@@ -153,14 +152,14 @@ int main(int argc, char** argv) {
         exit(1);
     }
 
-    socklen_t socklen;
+    socklen_t socklen = sizeof(client);
     if(getsockname(cmdManager->workerSock, (struct sockaddr *)&client, &socklen) == -1){
         perror("getsockname");
         exit(1);
     }
 
 
-    cmdManager->workerPort = htonl(client.sin_port);
+    cmdManager->workerPort = ntohs(client.sin_port);
     /*send port*/
     message = (char*)calloc(sizeof(char),MESSAGE_BUFFER);
     sprintf(message, "%d", cmdManager->workerPort);

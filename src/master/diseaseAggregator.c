@@ -194,41 +194,41 @@ bool sendStatistics(int sock) {
     char* message;
 
     /*write the number of directories that will send stats to follow to fifo*/
-    message = calloc(sizeof(char), MESSAGE_BUFFER+1);
+    message = calloc(sizeof(char), MESSAGE_BUFFER);
     sprintf(message, "%d", cmdManager->numOfDirectories);
-    write(sock, message, MESSAGE_BUFFER+1);
+    write(sock, message, MESSAGE_BUFFER);
     free(message);
 
     /*send statistics*/
     for (int i = 0; i < cmdManager->numOfDirectories; i++) {
         /*write the country*/
-        write(sock, cmdManager->fileExplorer[i]->country, MESSAGE_BUFFER+1);
+        write(sock, cmdManager->fileExplorer[i]->country, MESSAGE_BUFFER);
 
         /*write number of files for the country*/
-        messageSize = calloc(sizeof(char), MESSAGE_BUFFER+1);
+        messageSize = calloc(sizeof(char), MESSAGE_BUFFER);
         sprintf(messageSize, "%d", cmdManager->fileExplorer[i]->fileArraySize);
-        write(sock, messageSize, MESSAGE_SIZE);
+        write(sock, messageSize, MESSAGE_BUFFER);
         free(messageSize);
 
         for (int j = 0; j < cmdManager->fileExplorer[i]->fileArraySize; j++) {
             /*write the file name*/
-            write(sock, cmdManager->fileExplorer[i]->fileItemsArray[j].fileName, MESSAGE_BUFFER+1);
+            write(sock, cmdManager->fileExplorer[i]->fileItemsArray[j].fileName, MESSAGE_BUFFER);
 
             /*write number of diseases for the country*/
-            messageSize = calloc(sizeof(char), MESSAGE_BUFFER+1);
+            messageSize = calloc(sizeof(char), MESSAGE_BUFFER);
             sprintf(messageSize, "%d", cmdManager->fileExplorer[i]->fileItemsArray[j].numOfDiseases);
-            write(sock, messageSize, MESSAGE_BUFFER+1);
+            write(sock, messageSize, MESSAGE_BUFFER);
             free(messageSize);
 
             for (int k = 0; k < cmdManager->fileExplorer[i]->fileItemsArray[j].numOfDiseases; k++) {
                 /*write disease*/
 
-                write(sock, cmdManager->fileExplorer[i]->fileItemsArray[j].fileDiseaseStats[k]->disease, MESSAGE_BUFFER+1);
+                write(sock, cmdManager->fileExplorer[i]->fileItemsArray[j].fileDiseaseStats[k]->disease, MESSAGE_BUFFER);
 
                 /*write stats for age ranges*/
                 for (int l = 0; l < 4; l++) {
 
-                    message = calloc(sizeof(char), MESSAGE_BUFFER + 1);
+                    message = calloc(sizeof(char), MESSAGE_BUFFER);
 
                     if(l == 0){
                         sprintf(message, "Age range 0-20 years: %d cases", cmdManager->fileExplorer[i]->fileItemsArray[j].fileDiseaseStats[k]->AgeRangeCasesArray[l]);
@@ -240,18 +240,18 @@ bool sendStatistics(int sock) {
                         sprintf(message, "Age range 60+ years: %d cases", cmdManager->fileExplorer[i]->fileItemsArray[j].fileDiseaseStats[k]->AgeRangeCasesArray[l]);
                     }
 
-                    write(sock, message,MESSAGE_BUFFER+1);
+                    write(sock, message,MESSAGE_BUFFER);
                     free(message);
                 }
 
                 /*end of stat batch*/
-                write(sock, "next",MESSAGE_BUFFER+1);
+                write(sock, "next",MESSAGE_BUFFER);
             }
         }
     }
 
     /*send end of transmission message*/
-    write(sock, "StatsDone", MESSAGE_BUFFER+1);
+    write(sock, "StatsDone", MESSAGE_BUFFER);
     return true;
 }
 
@@ -361,9 +361,7 @@ AggregatorInputArguments* getAggregatorInputArgs(int argc, char** argv){
             numOfArgs += 2;
         } else if (strcmp(argv[i], "-b") == 0) {
             arguments->bufferSize = atoi(argv[i + 1]);
-            if(arguments->bufferSize < 120){
-                arguments->bufferSize = 120;
-            }
+            arguments->bufferSize = MESSAGE_BUFFER;
             numOfArgs += 2;
         }else if(strcmp(argv[i], "-s") == 0){
             arguments->serverIP = calloc(sizeof(char), 120);
@@ -411,18 +409,18 @@ void exitAggregator(AggregatorServerManager* pAggregatorServerManager){
 
 void DiseaseAggregatorServerManager(AggregatorServerManager* pAggregatorServerManager){
 
-    char* command = NULL;
+/*    char* command = NULL;
     char* simpleCommand = NULL;
     char* arguments = NULL;
     char* message = NULL;
     char* answer = NULL;
-    size_t length = 0;
+    size_t length = 0;*/
 
-    fprintf(stdout,"~$:");
+    //fprintf(stdout,"~$:");
     while (1){
 
-        getline(&(pAggregatorServerManager->line), &length, stdin);
-        if(sig_flag){
+        //getline(&(pAggregatorServerManager->line), &length, stdin);
+ /*       if(sig_flag){
             strcpy(pAggregatorServerManager->line,"\n");
             clearerr(stdin);
             sig_flag = false;
@@ -488,7 +486,7 @@ void DiseaseAggregatorServerManager(AggregatorServerManager* pAggregatorServerMa
                 fprintf(stdout,"The command you have entered does not exist.\n You can see the "
                                "available commands by hitting /help.\n~$:");
             }
-        }
+        }*/
     }
 
 }
@@ -497,22 +495,26 @@ void DiseaseAggregatorServerManager(AggregatorServerManager* pAggregatorServerMa
 void commandServer(CmdManager* manager) {
     char *command = NULL;
     char *simpleCommand = NULL;
-    char *line = calloc(sizeof(char), (manager->bufferSize) + 1);
+    char *line = calloc(sizeof(char), MESSAGE_BUFFER);
     int reader = -1;
     socklen_t clientlen;
 
+    while(1){
+        clientlen = sizeof(cmdManager->workerptr);
+        fprintf(stderr, "Wait to accept\n");
 
-    do{
-        clientlen = (struct sockaddr *)&(cmdManager->workerptr);
-        if ((cmdManager->newSock = accept((cmdManager->workerSock), cmdManager->workerptr, &clientlen)) < 0) {
+        if ((cmdManager->newSock = accept((cmdManager->workerSock),(struct sockaddr *) &(cmdManager->workerptr), &clientlen))< 0){
             perror("Accept worker");
-            exit(1);
+            exit(EXIT_FAILURE);
         }
 
-        reader = read(manager->newSock, line, manager->bufferSize + 1);
+        fprintf(stdout, "WhoServer accepted connection to client %d\n", cmdManager->newSock);
+
+        reader = read(cmdManager->newSock, line, MESSAGE_BUFFER);
+        fprintf(stderr, "%s\n", line);
 
         if(sig_flag && reader < 0){
-            reader = read(manager->newSock, line, manager->bufferSize + 1);
+            reader = read(cmdManager->newSock, line, MESSAGE_BUFFER);
             sig_flag = false;
         }
 
@@ -521,13 +523,13 @@ void commandServer(CmdManager* manager) {
         }
         simpleCommand = strtok(line, "\n");
         if (simpleCommand == NULL) {
-            manager->workerLog->fails+=1;
+            cmdManager->workerLog->fails+=1;
             continue;
         } else if (strcmp(simpleCommand, "/help") == 0) {
-            manager->workerLog->successes+=1;
+            cmdManager->workerLog->successes+=1;
             helpDesc();
         } else if (strcmp(simpleCommand, "/exit") == 0) {
-            manager->workerLog->successes+=1;
+            cmdManager->workerLog->successes+=1;
             free(line);
             exitMonitor(manager);
         } else {
@@ -662,7 +664,8 @@ void commandServer(CmdManager* manager) {
                 manager->workerLog->fails+=1;
             }
         }
-    }while(reader > 0 );
+    }while(1);
+    fprintf(stderr, "Bye bye worker\n");
 }
 
 

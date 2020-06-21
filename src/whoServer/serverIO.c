@@ -14,6 +14,7 @@
 #include <stdint.h>
 #include <unistd.h>
 #include <netinet/in.h>
+#include <arpa/inet.h>
 #include "../../header/serverIO.h"
 #include "../../header/list_lib.h"
 #include "../../header/command_lib.h"
@@ -78,14 +79,14 @@ void perror_exit(char *message){
 
 
 bool receiveStats(int readBufferSize, int sock){
-    char *fileName, *disease, *message, *messageSize;
+    char *fileName, *disease, *message, *messageSize, *country;
     int numOfDirs, numOfFiles, numOfDiseases;
     Node *listNode;
     CountryListItem *countryListItem;
 
     /*read per country*/
-    message = calloc(sizeof(char), readBufferSize+1);
-    if (read(sock, message, readBufferSize+1) < 0) {
+    message = calloc(sizeof(char), MESSAGE_BUFFER);
+    if (read(sock, message, MESSAGE_BUFFER) < 0) {
         perror("problem in reading");
         exit(5);
     }
@@ -95,63 +96,66 @@ bool receiveStats(int readBufferSize, int sock){
     for (int i = 0; i < numOfDirs; i++) {
         /*read actual message from fifo*/
         countryListItem = calloc(sizeof(CountryListItem), 1);
-        countryListItem->country = calloc(sizeof(char), readBufferSize+1);
-        read(sock, countryListItem->country,readBufferSize+1);
-        listNode = nodeInit(countryListItem->country);
+        countryListItem->country = calloc(sizeof(char), MESSAGE_BUFFER);
+        country = calloc(sizeof(char), MESSAGE_BUFFER);
+        read(sock, country, MESSAGE_BUFFER);
+        strcpy(countryListItem->country, country);
+        listNode = nodeInit((void*)countryListItem);
+
+        //fprintf(stderr, "country: %s\n",countryListItem->country);
 
         /*critical section for worker struct*/
-        fprintf(stderr, "MtXlock\n");
         pthread_mutex_lock(&(whoServerManager->mtxW));
 
-        if(whoServerManager->workerItemArray[whoServerManager->workerArrayIndex].list == NULL)
+        if((whoServerManager->workerItemArray[whoServerManager->workerArrayIndex].list) == NULL)
             whoServerManager->workerItemArray[whoServerManager->workerArrayIndex].list = linkedListInit(listNode);
         else
-            push(listNode, whoServerManager->workerItemArray[whoServerManager->workerArrayIndex].list);
+            push(listNode, (whoServerManager->workerItemArray[whoServerManager->workerArrayIndex].list));
 
         pthread_mutex_unlock(&(whoServerManager->mtxW));
-        fprintf(stderr, "MtX-Un-lock\n");
 
         /*read per file*/
-        messageSize = calloc(sizeof(char), readBufferSize+1);
-        read(sock, messageSize, readBufferSize+1);
+        messageSize = calloc(sizeof(char), MESSAGE_BUFFER);
+        read(sock, messageSize, MESSAGE_BUFFER);
         numOfFiles = atoi(messageSize);
         free(messageSize);
         for (int j = 0; j < numOfFiles; j++) {
             /*read actual message from fifo*/
-            fileName = calloc(sizeof(char), readBufferSize+1);
-            read(sock, fileName,readBufferSize+1);
+            fileName = calloc(sizeof(char), MESSAGE_BUFFER);
+            read(sock, fileName,MESSAGE_BUFFER);
             //fprintf(stdout, "\n%s\n%s\n",fileName, countryListItem->country);
 
             /*read per disease*/
-            messageSize = calloc(sizeof(char), readBufferSize+1);
-            read(sock, messageSize, readBufferSize+1);
+            messageSize = calloc(sizeof(char), MESSAGE_BUFFER);
+            read(sock, messageSize, MESSAGE_BUFFER);
             numOfDiseases = atoi(messageSize);
             free(messageSize);
             for (int k = 0; k < numOfDiseases; k++) {
                 /*read actual message from fifo*/
-                disease = calloc(sizeof(char), readBufferSize+1);
-                read(sock, disease,readBufferSize+1);
+                disease = calloc(sizeof(char), MESSAGE_BUFFER);
+                read(sock, disease,MESSAGE_BUFFER);
                 //fprintf(stdout, "%s\n", disease);
 
                 for (int l = 0; l < 4; l++) {
                     /*read actual message from fifo*/
-                    message = calloc(sizeof(char), readBufferSize+1);
-                    read(sock, message,readBufferSize+1);
+                    message = calloc(sizeof(char), MESSAGE_BUFFER);
+                    read(sock, message,MESSAGE_BUFFER);
                     //fprintf(stdout, "%s\n", message);
                     free(message);
                 }
 
                 /*read actual message from fifo*/
-                message = calloc(sizeof(char), readBufferSize+1);
-                read(sock, message,readBufferSize+1);
+                message = calloc(sizeof(char), MESSAGE_BUFFER);
+                read(sock, message,MESSAGE_BUFFER);
                 free(message);
                 free(disease);
             }
             free(fileName);
         }
+        free(country);
     }
-    message = calloc(sizeof(char), readBufferSize+1);
-    read(sock, message,readBufferSize+1);
+    message = calloc(sizeof(char), MESSAGE_BUFFER);
+    read(sock, message,MESSAGE_BUFFER);
     free(message);
     return true;
 }
@@ -203,23 +207,20 @@ void *workerThread(void* arg){
 
     ThreadPool* threadPool = (ThreadPool*)arg;
     int readWorkers = 0;
-    int readClients = 0;
     int workerPort;
-    int numOfWorkers, numOfClients;
+    int numOfWorkers;
     char* message;
 
     while (threadPool->end == 0){
 
         // Try to get lock:
-        fprintf(stderr, "Mutexlock\n");
+        fprintf(stderr, "Wait Mutexlock\n");
         pthread_mutex_lock(&(threadPool->mutexLock));
 
         // Wait until round buffer has available items:
-        while(circularBufSize(threadPool->circularBuffer) <= 0){
-            fprintf(stdout, "Thread waiting\n");
-            pthread_cond_wait(&(threadPool->mutexCond), &(threadPool->mutexLock));
-        }
-        fprintf ( stdout, "Thread % ld : Woke up \n" , pthread_self () ) ;
+        fprintf(stderr, "Thread waiting\n");
+        pthread_cond_wait(&(threadPool->mutexCond), &(threadPool->mutexLock));
+        fprintf (stderr, "Thread % ld : Woke up \n" , pthread_self () ) ;
 
         // If threadpool dead
         if(threadPool->end == 1){
@@ -236,8 +237,6 @@ void *workerThread(void* arg){
         circularBufGet(threadPool->circularBuffer, &fileDescriptor);
         newSock = fileDescriptor.fd;
         pthread_mutex_unlock(&(threadPool->mutexLock));
-        pthread_cond_signal (&(threadPool->mutexCond));
-        fprintf(stderr, "Mutex-Un-lock\n");
 
         /**
          * The socket comes from the worker thus we proceed to receiving the
@@ -249,15 +248,9 @@ void *workerThread(void* arg){
             message = calloc(sizeof(char *), MESSAGE_BUFFER);
             read(newSock, message, MESSAGE_BUFFER);
             workerPort = atoi(message);
-            //printf("--------------------------%d port\n\n", workerPort);
-
-            flockfile(stdout);
-
-            fprintf(stdout, "Worker port: %s\n", message);
             free(message);
 
             /*Get num of workers and initialize structures*/
-            fprintf(stderr, "MtXlock\n");
             pthread_mutex_lock(&(whoServerManager->mtxW));
 
             message = calloc(sizeof(char *), MESSAGE_BUFFER);
@@ -265,10 +258,12 @@ void *workerThread(void* arg){
             numOfWorkers = atoi(message);
             free(message);
 
-            if (readWorkers == 0) {
+            if (whoServerManager->numOfWorkers == -1) {
                 whoServerManager->numOfWorkers = numOfWorkers;
-                //printf("--------------------------%d workers\n\n", numOfWorkers);
-                whoServerManager->workerItemArray = calloc(sizeof(WorkerItem), whoServerManager->numOfWorkers);
+                whoServerManager->workerItemArray = calloc(sizeof(WorkerItem), numOfWorkers);
+                for (int i = 0; i < numOfWorkers; i++) {
+                    whoServerManager->workerItemArray[i].list = NULL;
+                }
                 readWorkers = whoServerManager->numOfWorkers;
                 whoServerManager->workerArrayIndex = 0;
             }
@@ -276,35 +271,40 @@ void *workerThread(void* arg){
             whoServerManager->workerItemArray[whoServerManager->workerArrayIndex].workerPort = workerPort;
 
             pthread_mutex_unlock(&(whoServerManager->mtxW));
-            fprintf(stderr, "MtX-Un-lock\n");
 
+            flockfile(stdout);
             fprintf(stdout, "Receiving Statistics...\n");
             if (!receiveStats(MESSAGE_BUFFER, newSock)) {
                 fprintf(stderr, "Could not receive statistics\n");
             }
-
             funlockfile(stdout);
 
-            fprintf(stderr, "=>MtXlock\n");
             pthread_mutex_lock(&(whoServerManager->mtxW));
             whoServerManager->numOfWorkersEnd += 1;
-            fprintf(stderr, "%d %d\n", whoServerManager->numOfWorkers ,whoServerManager->numOfWorkersEnd);
+            whoServerManager->workerArrayIndex += 1;
+            //fprintf(stderr, "%d %d\n", whoServerManager->numOfWorkers ,whoServerManager->numOfWorkersEnd);
             if((whoServerManager->numOfWorkers) == (whoServerManager->numOfWorkersEnd)){
                 fprintf(stderr, "Wait the clients\n");
                 whoServerManager->waitClient = true;
             }
             pthread_mutex_unlock(&(whoServerManager->mtxW));
-            fprintf(stderr, "=>MtX-Un-lock\n");
 
         } else if(fileDescriptor.type == CLIENT_SOCKET){
-            flockfile(stdout);
-            fprintf(stderr, "$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$\n");
 
             //read the query
             message = calloc(sizeof(char *), MESSAGE_BUFFER);
-            read(newSock, message, MESSAGE_BUFFER);
-            fprintf(stderr, "---%s\n", message);
-            funlockfile(stdout);
+            while(strcmp(message, "$END$") != 0){
+                memset(message, 0, MESSAGE_BUFFER);
+                size_t res = read(newSock, message, MESSAGE_BUFFER);
+                fprintf(stderr, "Result returned:%ld\n", res);
+                if(message[0] == 0) continue;
+                if(strcmp(message, "$END$") != 0){
+                    //flockfile(stdout);
+                    fprintf(stderr, "Sending query: %s\n", message);
+                    sendQueryToWorker(message, newSock);
+                    //funlockfile(stdout);
+                }
+            }
 
         }
 
@@ -319,59 +319,101 @@ void sendQueryToWorker(char *query, int socketFd){
     char* command;
     char* tempQuery = calloc(sizeof(char), MESSAGE_BUFFER);
     struct sockaddr *serverptr;
-    Socket *newSocket;
+    struct sockaddr_in worker;
+    int newSocket;
+    char * answer;
+    socklen_t workerlen;
+    int reader = -1;
 
     strcpy(tempQuery, query);
-    simpleCommand = strtok(tempQuery, "\n");
+    simpleCommand = strtok_r(tempQuery, "\n", &tempQuery);
 
     if (strcmp(simpleCommand, "/help") == 0) {
         helpDesc();
     }else {
-
-        command = strtok(simpleCommand, " ");
+        char* saveptr;
+        command = strtok_r(simpleCommand, " ", &saveptr);
 
         if (strcmp(command, "/diseaseFrequency") == 0) {
             Date *date1;
             Date *date2;
+            char *virusName;
             date1 = malloc(sizeof(struct Date));
             date2 = malloc(sizeof(struct Date));
 
-            char *virusName = strtok(NULL, " ");   //virus
-            char *arg2 = strtok(NULL, " ");   //date1
-            char *arg3 = strtok(NULL, " ");   //date2
-            char *country = strtok(NULL, " ");
+            virusName = strtok_r(NULL, " ", &saveptr);   //virus
+            char *arg2 = strtok_r(NULL, " ", &saveptr);   //date1
+            char *arg3 = strtok_r(NULL, " ", &saveptr);   //date2
+            char *country = strtok_r(NULL, " ", &saveptr);
 
             if (arg2 != NULL && arg3 != NULL) {
-                date1->day = atoi(strtok(arg2, "-"));
-                date1->month = atoi(strtok(NULL, "-"));
-                date1->year = atoi(strtok(NULL, "-"));
-                date2->day = atoi(strtok(arg3, "-"));
-                date2->month = atoi(strtok(NULL, "-"));
-                date2->year = atoi(strtok(NULL, "-"));
+                date1->day = atoi(strtok_r(arg2, "-", &arg2));
+                date1->month = atoi(strtok_r(NULL, "-", &arg2));
+                date1->year = atoi(strtok_r(NULL, "-", &arg2));
+                date2->day = atoi(strtok_r(arg3, "-", &arg2));
+                date2->month = atoi(strtok_r(NULL, "-", &arg2));
+                date2->year = atoi(strtok_r(NULL, "-", &arg2));
 
                 if (country != NULL) {
                     for(int i = 0; i < whoServerManager->numOfWorkers; i++){
-                        newSocket = initializeSocket(whoServerManager->workerItemArray[i].workerPort);
 
-                        serverptr = (struct sockaddr*)&(newSocket->socketAddressServer);
-                        if (connect(newSocket->socket, serverptr, sizeof(newSocket->socketAddressServer)) < 0){
-                            perror("Connect server");
-                            exit(1);
+                        pthread_mutex_lock(&(whoServerManager->mtxW));
+                        fprintf(stderr, "%d &&&&&&&&&&&&&", i);
+                        if(workerHasCountry(country, (whoServerManager->workerItemArray[i].list))){
+                            pthread_mutex_unlock(&(whoServerManager->mtxW));
+                            /* Find server address */
+                            if ((newSocket = socket(AF_INET, SOCK_STREAM, 0)) < 0){
+                                perror("client socket");
+                                exit(1);
+                            }
+                            worker.sin_family = AF_INET;
+                            worker.sin_addr = whoServerManager->serverSocket->socketAddressClient.sin_addr;
+                            worker.sin_port = htons(whoServerManager->workerItemArray[i].workerPort);         /* Server port */
+                            serverptr = (struct sockaddr*)&(worker);
+                            workerlen = sizeof(worker);
+                            if (connect(newSocket, serverptr, workerlen) < 0){
+                                printf("%d, %s", serverptr->sa_family, serverptr->sa_data);
+                                perror("Connect worker");
+                                exit(1);
+                            }
+                            fprintf(stderr,"Connecting to worker server port %d to send query\n", whoServerManager->workerItemArray[i].workerPort);
+                            write(newSocket, query, MESSAGE_BUFFER);
+                            answer = calloc(sizeof(char), MESSAGE_BUFFER);
+                            fprintf(stderr, "wait answer$$$$$$$$$$$$$$$$$$$$$$\n");
+                            while(reader <= 0){
+                                reader = read(newSocket, answer, MESSAGE_BUFFER);
+                            }
+                            //reader = 0;
+                            fprintf(stderr, "%d\n",i);
+                            break;
+                        }else{
+                            pthread_mutex_unlock(&(whoServerManager->mtxW));
                         }
-                        printf("Connecting to worker server port %d to send query\n", whoServerManager->workerItemArray[i].workerPort);
-                        write(newSocket->socket, query, MESSAGE_BUFFER);
                     }
                 } else{
                     for(int i = 0; i < whoServerManager->numOfWorkers; i++){
-                        newSocket = initializeSocket(whoServerManager->workerItemArray[i].workerPort);
-
-                        serverptr = (struct sockaddr*)&(newSocket->socketAddressServer);
-                        if (connect(newSocket->socket, serverptr, sizeof(newSocket->socketAddressServer)) < 0){
+                        /* Find worker address */
+                        if ((newSocket = socket(AF_INET, SOCK_STREAM, 0)) < 0){
+                            perror("worker socket");
+                            exit(1);
+                        }
+                        worker.sin_family = AF_INET;
+                        worker.sin_addr.s_addr = whoServerManager->serverSocket->socketAddressServer.sin_addr.s_addr;
+                        worker.sin_port = htons(whoServerManager->workerItemArray[i].workerPort);         /* Server port */
+                        serverptr = (struct sockaddr*)&(worker);
+                        if (connect(newSocket, serverptr, sizeof(worker)) < 0){
                             perror("Connect server");
                             exit(1);
                         }
                         printf("Connecting to worker server port %d to send query\n", whoServerManager->workerItemArray[i].workerPort);
-                        write(newSocket->socket, query, MESSAGE_BUFFER);
+                        write(newSocket, query, MESSAGE_BUFFER);
+                        answer = calloc(sizeof(char), MESSAGE_BUFFER);
+                        fprintf(stderr, "wait answer$$$$$$$$$$$$$$$$$$$$$$\n");
+                        while(reader <= 0){
+                            reader = read(newSocket, answer, MESSAGE_BUFFER);
+                        }
+                        reader = 0;
+                        //fprintf(stderr, "%d\n",reader);
                     }
                 }
 
@@ -395,3 +437,34 @@ void sendQueryToWorker(char *query, int socketFd){
 
 }
 
+bool workerHasCountry(char *country, List *workerCountryList){
+    Node* node = workerCountryList->head;
+    while (node != NULL){
+        if (compareListItemCountry(node->item, country)){
+            return true;
+        }
+        node = node->next;
+    }
+    return false;
+}
+
+bool compareListItemCountry(CountryListItem* countryItem, char* key){
+    fprintf(stderr,"#############%s %s\n", countryItem->country, key);
+    if (strcmp(countryItem->country, key) == 0){
+        return true;
+    }
+    return false;
+}
+
+void printCountryList(List *countryList){
+    Node* node = countryList->head;
+    CountryListItem *countryListItem;
+    while (node != NULL){
+        countryListItem = node->item;
+        if(countryListItem->country == NULL)
+            fprintf(stderr, "Shit just went sideways in the most colossal way.\n");
+        else
+            fprintf(stderr, "%s\n\n", countryListItem->country);
+        node = node->next;
+    }
+}

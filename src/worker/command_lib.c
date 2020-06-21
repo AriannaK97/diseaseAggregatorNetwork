@@ -40,7 +40,7 @@ void listCountries(AggregatorServerManager* pAggregatorServerManager){
 void diseaseFrequency(CmdManager* manager, char* virusName, Date* date1, Date* date2, char* country){
 
     HashElement iterator = hashITERATOR(manager->diseaseHashTable);
-    char* message = calloc(sizeof(char), manager->bufferSize + 1);
+    char* message = calloc(sizeof(char), MESSAGE_BUFFER);
     iterator.date1 = date1;
     iterator.date2 = date2;
     iterator.virus = virusName;
@@ -58,7 +58,7 @@ void diseaseFrequency(CmdManager* manager, char* virusName, Date* date1, Date* d
         sprintf(message, "%d\n", iterator.counter);
         manager->workerLog->successes+=1;
     }
-    writeInFifoPipe(manager->fd_client_w, message, manager->bufferSize + 1);
+    write(manager->newSock, message, MESSAGE_BUFFER);
     //fprintf(stdout, "\n~$:");
 }
 
@@ -70,7 +70,7 @@ void diseaseFrequency(CmdManager* manager, char* virusName, Date* date1, Date* d
  * */
 void topk_AgeRanges(CmdManager* manager, int k, char* country, char* disease , Date* date1, Date* date2){
     HashElement iterator = hashITERATOR(manager->diseaseHashTable);
-    char* message = calloc(sizeof(char), manager->bufferSize + 1);
+    char* message = calloc(sizeof(char), MESSAGE_BUFFER);
     AgeRange* ageRangeCasesArray = calloc(sizeof(AgeRange), 4);
     float total = 0;
     iterator.country = country;
@@ -83,7 +83,7 @@ void topk_AgeRanges(CmdManager* manager, int k, char* country, char* disease , D
         //fprintf(stdout, "There are no countries with cases of %s\n~$:", disease);
         sprintf(message, "null");
         manager->workerLog->fails+=1;
-        writeInFifoPipe(manager->fd_client_w, message, manager->bufferSize + 1);
+        write(manager->newSock, message, MESSAGE_BUFFER);
         //freeHeapTree(maxHeap);
     }else{
         Node* currentNode = iterator.AgeRangeNodes->head;
@@ -135,7 +135,7 @@ void topk_AgeRanges(CmdManager* manager, int k, char* country, char* disease , D
             }
         }
         free(ageRangeCasesArray);
-        writeInFifoPipe(manager->fd_client_w, message, manager->bufferSize + 1);
+        write(manager->newSock, message, MESSAGE_BUFFER);
     }
 }
 
@@ -152,7 +152,7 @@ int compareTopkAgeRanges (const void * a, const void * b){
  * */
 void searchPatientRecord(CmdManager* manager, char* recordID){
     PatientCase* patient;
-    char* message = calloc(sizeof(char), manager->bufferSize + 1);
+    char* message = calloc(sizeof(char), MESSAGE_BUFFER);
     patient = getPatientFromList(manager->patientList, recordID);
     if(patient == NULL){
         sprintf(message,"null");
@@ -168,7 +168,7 @@ void searchPatientRecord(CmdManager* manager, char* recordID){
         }
 
     }
-    writeInFifoPipe(manager->fd_client_w, message, manager->bufferSize + 1);
+    write(manager->newSock, message, MESSAGE_BUFFER);
 }
 
 
@@ -183,7 +183,7 @@ void searchPatientRecord(CmdManager* manager, char* recordID){
  * */
 void numPatientAdmissions(CmdManager* manager, char* disease, Date* date1, Date* date2, char* country){
     int countryExists = false;
-    char* message = calloc(sizeof(char), manager->bufferSize + 1);
+    char* message = calloc(sizeof(char), MESSAGE_BUFFER);
     char* patientsNumStr = calloc(sizeof(char), 10);
     int patientsNum = 0;
     if(country != NULL){
@@ -221,7 +221,7 @@ void numPatientAdmissions(CmdManager* manager, char* disease, Date* date1, Date*
             sprintf(message, "null");
             manager->workerLog->fails+=1;
         }
-        writeInFifoPipe(manager->fd_client_w, message, manager->bufferSize + 1);
+        write(manager->newSock, message, MESSAGE_BUFFER);
         free(message);
     }else{
         HashElement iterator = hashITERATOR(manager->countryHashTable);
@@ -252,13 +252,13 @@ void numPatientAdmissions(CmdManager* manager, char* disease, Date* date1, Date*
             sprintf(message, "null");
             manager->workerLog->fails+=1;
         }
-        writeInFifoPipe(manager->fd_client_w, message, manager->bufferSize + 1);
+        write(manager->newSock, message, MESSAGE_BUFFER);
         free(message);
     }
 }
 
 void numPatientDischarges(CmdManager* manager, char* disease, Date* date1, Date* date2, char* country){
-    char* message = calloc(sizeof(char), manager->bufferSize + 1);
+    char* message = calloc(sizeof(char), MESSAGE_BUFFER);
     char* patientsNumStr = calloc(sizeof(char), 10);
     int countryExists = false;
     int patientsNum = 0;
@@ -297,7 +297,7 @@ void numPatientDischarges(CmdManager* manager, char* disease, Date* date1, Date*
             sprintf(message, "null");
             manager->workerLog->fails+=1;
         }
-        writeInFifoPipe(manager->fd_client_w, message, manager->bufferSize + 1);
+        write(manager->newSock, message, MESSAGE_BUFFER);
         free(message);
     }else{
         HashElement iterator = hashITERATOR(manager->countryHashTable);
@@ -327,7 +327,7 @@ void numPatientDischarges(CmdManager* manager, char* disease, Date* date1, Date*
             sprintf(message, "null");
             manager->workerLog->fails+=1;
         }
-        writeInFifoPipe(manager->fd_client_w, message, manager->bufferSize + 1);
+        write(manager->newSock, message, MESSAGE_BUFFER);
         free(message);
     }
 }
@@ -381,7 +381,7 @@ void exitMonitor(CmdManager* manager){
     //free(manager->input_dir);
 
     strcpy(message, "kill me father, for I have sinned");
-    writeInFifoPipe(manager->fd_client_w, message, manager->bufferSize + 1);
+    write(manager->newSock, message, MESSAGE_BUFFER);
 
     close(manager->fd_client_r);
     close(manager->fd_client_w);

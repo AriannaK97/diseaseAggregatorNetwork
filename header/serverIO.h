@@ -99,5 +99,12 @@ Socket* initializeSocket(uint16_t port);
 
 void * workerThread(void* arg);
 
+void sendQueryToWorker(char *query, int socketFd);
+
+bool workerHasCountry(char *country, struct List *workerCountryList);
+
+bool compareListItemCountry(CountryListItem* countryItem, char* key);
+
+void printCountryList(struct List *countryList);
 
 #endif //WHOSERVERPROGRAM_SERVERIO_H

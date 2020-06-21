@@ -37,6 +37,7 @@ MonitorInputArguments* getMonitorInputArgs(int argc, char** argv){
     for (int i = 1; i < argc; i++) {
         if (i == 1) {
             arguments->bufferSize = atoi(argv[i]);
+            arguments->bufferSize = MESSAGE_BUFFER;
         } else if (i == 2) {
             arguments->diseaseHashtableNumOfEntries = atoi(argv[i]);
         } else if (i == 3) {
@@ -377,7 +378,7 @@ CmdManager* read_directory_list(CmdManager* cmdManager){
 
         /*create array of input date files*/
         cmdManager->fileExplorer[dirNum]->fileItemsArray = (FileItem*) calloc(sizeof(FileItem), (cmdManager->fileExplorer[dirNum]->fileArraySize));
-        cmdManager->fileExplorer[dirNum]->fileItemsArray = createFileArray(FD, item, cmdManager->fileExplorer[dirNum]->fileArraySize, cmdManager->bufferSize);
+        cmdManager->fileExplorer[dirNum]->fileItemsArray = createFileArray(FD, item, cmdManager->fileExplorer[dirNum]->fileArraySize, MESSAGE_BUFFER);
 
         strcpy(cmdManager->fileExplorer[dirNum]->country, item->dirName);
 
