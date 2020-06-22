@@ -59,6 +59,7 @@ void diseaseFrequency(CmdManager* manager, char* virusName, Date* date1, Date* d
         manager->workerLog->successes+=1;
     }
     write(manager->newSock, message, MESSAGE_BUFFER);
+    free(message);
     //fprintf(stdout, "\n~$:");
 }
 
@@ -136,6 +137,7 @@ void topk_AgeRanges(CmdManager* manager, int k, char* country, char* disease , D
         }
         free(ageRangeCasesArray);
         write(manager->newSock, message, MESSAGE_BUFFER);
+        free(message);
     }
 }
 
@@ -169,6 +171,7 @@ void searchPatientRecord(CmdManager* manager, char* recordID){
 
     }
     write(manager->newSock, message, MESSAGE_BUFFER);
+    free(message);
 }
 
 

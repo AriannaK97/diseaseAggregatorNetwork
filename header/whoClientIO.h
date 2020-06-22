@@ -38,9 +38,7 @@ typedef struct WhoClientManager{
     int numThreads;
     uint16_t servPort;
     char *servIP;
-    //Socket *serverSocket;
-    //Socket *clientSocket;
-    int sock;
+    pthread_mutex_t mtxW;
 }WhoClientManager;
 
 typedef struct ThreadPool{

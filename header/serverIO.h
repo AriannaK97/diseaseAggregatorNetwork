@@ -103,6 +103,10 @@ void sendQueryToWorker(char *query, int socketFd);
 
 bool workerHasCountry(char *country, struct List *workerCountryList);
 
+void sendToWorkerHavingCountry(char* country, char* query, int socketFd);
+
+void sendToWorkerSimple(char* query, int socketFd);
+
 bool compareListItemCountry(CountryListItem* countryItem, char* key);
 
 void printCountryList(struct List *countryList);

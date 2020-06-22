@@ -151,6 +151,7 @@ FileItem* createFileArray(DIR * FD, DirListItem* item, int arraySize, int buffer
     FileItem* fileArray = (struct FileItem*)calloc(sizeof(struct FileItem),arraySize);
     int filePointer = 0;
     char* temp =  calloc(sizeof(char), bufferSize + 1);
+    char *saveptr;
 
     while ((in_file = readdir(FD))) {
 
@@ -170,9 +171,9 @@ FileItem* createFileArray(DIR * FD, DirListItem* item, int arraySize, int buffer
         strcat(subDirPath, in_file->d_name);
         strcpy(temp, in_file->d_name);
 
-        fileArray[filePointer].dateFile->day = atoi(strtok(temp, "-"));
-        fileArray[filePointer].dateFile->month = atoi(strtok(NULL, "-"));
-        fileArray[filePointer].dateFile->year = atoi(strtok(NULL, "-"));
+        fileArray[filePointer].dateFile->day = atoi(strtok_r(temp, "-", &saveptr));
+        fileArray[filePointer].dateFile->month = atoi(strtok_r(NULL, "-", &saveptr));
+        fileArray[filePointer].dateFile->year = atoi(strtok_r(NULL, "-", &saveptr));
 
         strcpy(fileArray[filePointer].filePath, subDirPath);
         strcpy(fileArray[filePointer].fileName, in_file->d_name);
@@ -498,6 +499,7 @@ void commandServer(CmdManager* manager) {
     char *line = calloc(sizeof(char), MESSAGE_BUFFER);
     int reader = -1;
     socklen_t clientlen;
+    char* saveptr;
 
     while(1){
         clientlen = sizeof(cmdManager->workerptr);
@@ -521,7 +523,7 @@ void commandServer(CmdManager* manager) {
         if (reader < 0) {
             break;
         }
-        simpleCommand = strtok(line, "\n");
+        simpleCommand = strtok_r(line, "\n", &saveptr);
         if (simpleCommand == NULL) {
             cmdManager->workerLog->fails+=1;
             continue;
@@ -534,7 +536,7 @@ void commandServer(CmdManager* manager) {
             exitMonitor(manager);
         } else {
 
-            command = strtok(simpleCommand, " ");
+            command = strtok_r(simpleCommand, " ", &saveptr);
 
             if (strcmp(command, "/diseaseFrequency") == 0) {
                 Date *date1;
@@ -542,18 +544,18 @@ void commandServer(CmdManager* manager) {
                 date1 = malloc(sizeof(struct Date));
                 date2 = malloc(sizeof(struct Date));
 
-                char *virusName = strtok(NULL, " ");   //virus
-                char *arg2 = strtok(NULL, " ");   //date1
-                char *arg3 = strtok(NULL, " ");   //date2
-                char *country = strtok(NULL, " ");
+                char *virusName = strtok_r(NULL, " ", &saveptr);   //virus
+                char *arg2 = strtok_r(NULL, " ", &saveptr);   //date1
+                char *arg3 = strtok_r(NULL, " ", &saveptr);   //date2
+                char *country = strtok_r(NULL, " ", &saveptr);
 
                 if (arg2 != NULL && arg3 != NULL) {
-                    date1->day = atoi(strtok(arg2, "-"));
-                    date1->month = atoi(strtok(NULL, "-"));
-                    date1->year = atoi(strtok(NULL, "-"));
-                    date2->day = atoi(strtok(arg3, "-"));
-                    date2->month = atoi(strtok(NULL, "-"));
-                    date2->year = atoi(strtok(NULL, "-"));
+                    date1->day = atoi(strtok_r(arg2, "-", &saveptr));
+                    date1->month = atoi(strtok_r(NULL, "-", &saveptr));
+                    date1->year = atoi(strtok_r(NULL, "-", &saveptr));
+                    date2->day = atoi(strtok_r(arg3, "-", &saveptr));
+                    date2->month = atoi(strtok_r(NULL, "-", &saveptr));
+                    date2->year = atoi(strtok_r(NULL, "-", &saveptr));
                     manager->workerLog->successes += 1;
 
                     if (country != NULL) {
@@ -569,21 +571,21 @@ void commandServer(CmdManager* manager) {
 
             } else if (strcmp(command, "/topk-AgeRanges") == 0) {
 
-                int k = atoi(strtok(NULL, " "));
-                char *country = strtok(NULL, " ");
-                char *disease = strtok(NULL, " ");
-                char *arg3 = strtok(NULL, " ");
-                char *arg4 = strtok(NULL, " ");
+                int k = atoi(strtok_r(NULL, " ", &saveptr));
+                char *country = strtok_r(NULL, " ", &saveptr);
+                char *disease = strtok_r(NULL, " ", &saveptr);
+                char *arg3 = strtok_r(NULL, " ", &saveptr);
+                char *arg4 = strtok_r(NULL, " ", &saveptr);
 
                 if (arg3 != NULL && arg4 != NULL) {
                     Date *date1 = malloc(sizeof(struct Date));
                     Date *date2 = malloc(sizeof(struct Date));
-                    date1->day = atoi(strtok(arg3, "-"));
-                    date1->month = atoi(strtok(NULL, "-"));
-                    date1->year = atoi(strtok(NULL, "-"));
-                    date2->day = atoi(strtok(arg4, "-"));
-                    date2->month = atoi(strtok(NULL, "-"));
-                    date2->year = atoi(strtok(NULL, "-"));
+                    date1->day = atoi(strtok_r(arg3, "-", &saveptr));
+                    date1->month = atoi(strtok_r(NULL, "-", &saveptr));
+                    date1->year = atoi(strtok_r(NULL, "-", &saveptr));
+                    date2->day = atoi(strtok_r(arg4, "-",&saveptr));
+                    date2->month = atoi(strtok_r(NULL, "-", &saveptr));
+                    date2->year = atoi(strtok_r(NULL, "-", &saveptr));
                     manager->workerLog->successes+=1;
                     topk_AgeRanges(manager, k, country, disease, date1, date2);
                     free(date1);
@@ -595,7 +597,7 @@ void commandServer(CmdManager* manager) {
 
             } else if (strcmp(command, "/searchPatientRecord") == 0) {
 
-                char *recordID = strtok(NULL, "\n");
+                char *recordID = strtok_r(NULL, "\n", &saveptr);
                 manager->workerLog->successes+=1;
                 searchPatientRecord(manager, recordID);
 
@@ -606,18 +608,18 @@ void commandServer(CmdManager* manager) {
                 date1 = malloc(sizeof(struct Date));
                 date2 = malloc(sizeof(struct Date));
 
-                char *virusName = strtok(NULL, " ");   //virus
-                char *arg2 = strtok(NULL, " ");   //date1
-                char *arg3 = strtok(NULL, " ");   //date2
-                char *country = strtok(NULL, " ");
+                char *virusName = strtok_r(NULL, " ", &saveptr);   //virus
+                char *arg2 = strtok_r(NULL, " ", &saveptr);   //date1
+                char *arg3 = strtok_r(NULL, " ", &saveptr);   //date2
+                char *country = strtok_r(NULL, " ", &saveptr);
 
                 if (arg2 != NULL && arg3 != NULL) {
-                    date1->day = atoi(strtok(arg2, "-"));
-                    date1->month = atoi(strtok(NULL, "-"));
-                    date1->year = atoi(strtok(NULL, "-"));
-                    date2->day = atoi(strtok(arg3, "-"));
-                    date2->month = atoi(strtok(NULL, "-"));
-                    date2->year = atoi(strtok(NULL, "-"));
+                    date1->day = atoi(strtok_r(arg2, "-", &saveptr));
+                    date1->month = atoi(strtok_r(NULL, "-", &saveptr));
+                    date1->year = atoi(strtok_r(NULL, "-", &saveptr));
+                    date2->day = atoi(strtok_r(arg3, "-", &saveptr));
+                    date2->month = atoi(strtok_r(NULL, "-", &saveptr));
+                    date2->year = atoi(strtok_r(NULL, "-", &saveptr));
                     manager->workerLog->successes+=1;
 
                     if (country != NULL) {
@@ -637,18 +639,18 @@ void commandServer(CmdManager* manager) {
                 date1 = malloc(sizeof(struct Date));
                 date2 = malloc(sizeof(struct Date));
 
-                char *virusName = strtok(NULL, " ");   //virus
-                char *arg2 = strtok(NULL, " ");   //date1
-                char *arg3 = strtok(NULL, " ");   //date2
-                char *country = strtok(NULL, " ");
+                char *virusName = strtok_r(NULL, " ", &saveptr);   //virus
+                char *arg2 = strtok_r(NULL, " ", &saveptr);   //date1
+                char *arg3 = strtok_r(NULL, " ", &saveptr);   //date2
+                char *country = strtok_r(NULL, " ", &saveptr);
 
                 if (arg2 != NULL && arg3 != NULL) {
-                    date1->day = atoi(strtok(arg2, "-"));
-                    date1->month = atoi(strtok(NULL, "-"));
-                    date1->year = atoi(strtok(NULL, "-"));
-                    date2->day = atoi(strtok(arg3, "-"));
-                    date2->month = atoi(strtok(NULL, "-"));
-                    date2->year = atoi(strtok(NULL, "-"));
+                    date1->day = atoi(strtok_r(arg2, "-", &saveptr));
+                    date1->month = atoi(strtok_r(NULL, "-", &saveptr));
+                    date1->year = atoi(strtok_r(NULL, "-", &saveptr));
+                    date2->day = atoi(strtok_r(arg3, "-", &saveptr));
+                    date2->month = atoi(strtok_r(NULL, "-", &saveptr));
+                    date2->year = atoi(strtok_r(NULL, "-", &saveptr));
                     manager->workerLog->successes+=1;
                     if (country != NULL) {
                         numPatientDischarges(manager, virusName, date1, date2, country);

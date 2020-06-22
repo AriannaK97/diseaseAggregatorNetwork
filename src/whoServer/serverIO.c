@@ -9,12 +9,9 @@
 #include <string.h>
 #include <unistd.h>
 #include <sys/wait.h>	     /* sockets */
-#include <ctype.h>	         /* toupper */
 #include <stdbool.h>
 #include <stdint.h>
-#include <unistd.h>
 #include <netinet/in.h>
-#include <arpa/inet.h>
 #include "../../header/serverIO.h"
 #include "../../header/list_lib.h"
 #include "../../header/command_lib.h"
@@ -102,17 +99,12 @@ bool receiveStats(int readBufferSize, int sock){
         strcpy(countryListItem->country, country);
         listNode = nodeInit((void*)countryListItem);
 
-        //fprintf(stderr, "country: %s\n",countryListItem->country);
-
-        /*critical section for worker struct*/
-        pthread_mutex_lock(&(whoServerManager->mtxW));
 
         if((whoServerManager->workerItemArray[whoServerManager->workerArrayIndex].list) == NULL)
             whoServerManager->workerItemArray[whoServerManager->workerArrayIndex].list = linkedListInit(listNode);
         else
             push(listNode, (whoServerManager->workerItemArray[whoServerManager->workerArrayIndex].list));
 
-        pthread_mutex_unlock(&(whoServerManager->mtxW));
 
         /*read per file*/
         messageSize = calloc(sizeof(char), MESSAGE_BUFFER);
@@ -206,7 +198,6 @@ Socket* initializeSocket(uint16_t port){
 void *workerThread(void* arg){
 
     ThreadPool* threadPool = (ThreadPool*)arg;
-    int readWorkers = 0;
     int workerPort;
     int numOfWorkers;
     char* message;
@@ -264,13 +255,10 @@ void *workerThread(void* arg){
                 for (int i = 0; i < numOfWorkers; i++) {
                     whoServerManager->workerItemArray[i].list = NULL;
                 }
-                readWorkers = whoServerManager->numOfWorkers;
                 whoServerManager->workerArrayIndex = 0;
             }
 
             whoServerManager->workerItemArray[whoServerManager->workerArrayIndex].workerPort = workerPort;
-
-            pthread_mutex_unlock(&(whoServerManager->mtxW));
 
             flockfile(stdout);
             fprintf(stdout, "Receiving Statistics...\n");
@@ -279,7 +267,6 @@ void *workerThread(void* arg){
             }
             funlockfile(stdout);
 
-            pthread_mutex_lock(&(whoServerManager->mtxW));
             whoServerManager->numOfWorkersEnd += 1;
             whoServerManager->workerArrayIndex += 1;
             //fprintf(stderr, "%d %d\n", whoServerManager->numOfWorkers ,whoServerManager->numOfWorkersEnd);
@@ -292,22 +279,19 @@ void *workerThread(void* arg){
         } else if(fileDescriptor.type == CLIENT_SOCKET){
 
             //read the query
+
             message = calloc(sizeof(char *), MESSAGE_BUFFER);
-            while(strcmp(message, "$END$") != 0){
-                memset(message, 0, MESSAGE_BUFFER);
-                size_t res = read(newSock, message, MESSAGE_BUFFER);
-                fprintf(stderr, "Result returned:%ld\n", res);
-                if(message[0] == 0) continue;
-                if(strcmp(message, "$END$") != 0){
-                    //flockfile(stdout);
-                    fprintf(stderr, "Sending query: %s\n", message);
-                    sendQueryToWorker(message, newSock);
-                    //funlockfile(stdout);
-                }
-            }
 
+            read(newSock, message, MESSAGE_BUFFER);
+            fprintf(stderr, "Sending query: %s\n", message);
+
+            //send the query to the worker/s responsible
+            sendQueryToWorker(message, newSock);
+
+            free(message);
+
+            //funlockfile(stdout);
         }
-
 
     }
     return NULL;
@@ -318,12 +302,7 @@ void sendQueryToWorker(char *query, int socketFd){
     char* simpleCommand;
     char* command;
     char* tempQuery = calloc(sizeof(char), MESSAGE_BUFFER);
-    struct sockaddr *serverptr;
-    struct sockaddr_in worker;
-    int newSocket;
-    char * answer;
-    socklen_t workerlen;
-    int reader = -1;
+
 
     strcpy(tempQuery, query);
     simpleCommand = strtok_r(tempQuery, "\n", &tempQuery);
@@ -332,21 +311,23 @@ void sendQueryToWorker(char *query, int socketFd){
         helpDesc();
     }else {
         char* saveptr;
+
         command = strtok_r(simpleCommand, " ", &saveptr);
 
         if (strcmp(command, "/diseaseFrequency") == 0) {
             Date *date1;
             Date *date2;
-            char *virusName;
-            date1 = malloc(sizeof(struct Date));
-            date2 = malloc(sizeof(struct Date));
 
-            virusName = strtok_r(NULL, " ", &saveptr);   //virus
+            strtok_r(NULL, " ", &saveptr);   //virus
             char *arg2 = strtok_r(NULL, " ", &saveptr);   //date1
             char *arg3 = strtok_r(NULL, " ", &saveptr);   //date2
             char *country = strtok_r(NULL, " ", &saveptr);
 
             if (arg2 != NULL && arg3 != NULL) {
+
+                date1 = malloc(sizeof(struct Date));
+                date2 = malloc(sizeof(struct Date));
+
                 date1->day = atoi(strtok_r(arg2, "-", &arg2));
                 date1->month = atoi(strtok_r(NULL, "-", &arg2));
                 date1->year = atoi(strtok_r(NULL, "-", &arg2));
@@ -355,86 +336,161 @@ void sendQueryToWorker(char *query, int socketFd){
                 date2->year = atoi(strtok_r(NULL, "-", &arg2));
 
                 if (country != NULL) {
-                    for(int i = 0; i < whoServerManager->numOfWorkers; i++){
-
-                        pthread_mutex_lock(&(whoServerManager->mtxW));
-                        fprintf(stderr, "%d &&&&&&&&&&&&&", i);
-                        if(workerHasCountry(country, (whoServerManager->workerItemArray[i].list))){
-                            pthread_mutex_unlock(&(whoServerManager->mtxW));
-                            /* Find server address */
-                            if ((newSocket = socket(AF_INET, SOCK_STREAM, 0)) < 0){
-                                perror("client socket");
-                                exit(1);
-                            }
-                            worker.sin_family = AF_INET;
-                            worker.sin_addr = whoServerManager->serverSocket->socketAddressClient.sin_addr;
-                            worker.sin_port = htons(whoServerManager->workerItemArray[i].workerPort);         /* Server port */
-                            serverptr = (struct sockaddr*)&(worker);
-                            workerlen = sizeof(worker);
-                            if (connect(newSocket, serverptr, workerlen) < 0){
-                                printf("%d, %s", serverptr->sa_family, serverptr->sa_data);
-                                perror("Connect worker");
-                                exit(1);
-                            }
-                            fprintf(stderr,"Connecting to worker server port %d to send query\n", whoServerManager->workerItemArray[i].workerPort);
-                            write(newSocket, query, MESSAGE_BUFFER);
-                            answer = calloc(sizeof(char), MESSAGE_BUFFER);
-                            fprintf(stderr, "wait answer$$$$$$$$$$$$$$$$$$$$$$\n");
-                            while(reader <= 0){
-                                reader = read(newSocket, answer, MESSAGE_BUFFER);
-                            }
-                            //reader = 0;
-                            fprintf(stderr, "%d\n",i);
-                            break;
-                        }else{
-                            pthread_mutex_unlock(&(whoServerManager->mtxW));
-                        }
-                    }
+                    sendToWorkerHavingCountry(country, query, socketFd);
                 } else{
-                    for(int i = 0; i < whoServerManager->numOfWorkers; i++){
-                        /* Find worker address */
-                        if ((newSocket = socket(AF_INET, SOCK_STREAM, 0)) < 0){
-                            perror("worker socket");
-                            exit(1);
-                        }
-                        worker.sin_family = AF_INET;
-                        worker.sin_addr.s_addr = whoServerManager->serverSocket->socketAddressServer.sin_addr.s_addr;
-                        worker.sin_port = htons(whoServerManager->workerItemArray[i].workerPort);         /* Server port */
-                        serverptr = (struct sockaddr*)&(worker);
-                        if (connect(newSocket, serverptr, sizeof(worker)) < 0){
-                            perror("Connect server");
-                            exit(1);
-                        }
-                        printf("Connecting to worker server port %d to send query\n", whoServerManager->workerItemArray[i].workerPort);
-                        write(newSocket, query, MESSAGE_BUFFER);
-                        answer = calloc(sizeof(char), MESSAGE_BUFFER);
-                        fprintf(stderr, "wait answer$$$$$$$$$$$$$$$$$$$$$$\n");
-                        while(reader <= 0){
-                            reader = read(newSocket, answer, MESSAGE_BUFFER);
-                        }
-                        reader = 0;
-                        //fprintf(stderr, "%d\n",reader);
-                    }
+                    sendToWorkerSimple(query, socketFd);
                 }
-
                 free(date1);
                 free(date2);
             }
 
         }else if (strcmp(command, "/topk-AgeRanges") == 0) {
+            strtok_r(NULL, " ", &saveptr);
+            char *country = strtok_r(NULL, " ", &saveptr);
+            strtok_r(NULL, " ", &saveptr);
+            char *arg3 = strtok_r(NULL, " ", &saveptr);
+            char *arg4 = strtok_r(NULL, " ", &saveptr);
 
+            if (arg3 != NULL && arg4 != NULL) {
+                Date *date1 = malloc(sizeof(struct Date));
+                Date *date2 = malloc(sizeof(struct Date));
+                date1->day = atoi(strtok_r(arg3, "-", &saveptr));
+                date1->month = atoi(strtok_r(NULL, "-", &saveptr));
+                date1->year = atoi(strtok_r(NULL, "-", &saveptr));
+                date2->day = atoi(strtok_r(arg4, "-",&saveptr));
+                date2->month = atoi(strtok_r(NULL, "-", &saveptr));
+                date2->year = atoi(strtok_r(NULL, "-", &saveptr));
+
+                sendToWorkerHavingCountry(country, query, socketFd);
+
+                free(date1);
+                free(date2);
+
+            }
 
         } else if (strcmp(command, "/searchPatientRecord") == 0) {
+            strtok_r(NULL, "\n", &saveptr);
+            sendToWorkerSimple(query, socketFd);
 
+        } else if (strcmp(command, "/numPatientAdmissions") == 0 || strcmp(command, "/numPatientDischarges") == 0) {
+            Date *date1;
+            Date *date2;
+            date1 = malloc(sizeof(struct Date));
+            date2 = malloc(sizeof(struct Date));
 
-        } else if (strcmp(command, "/numPatientAdmissions") == 0) {
+            strtok_r(NULL, " ", &saveptr);   //virus
+            char *arg2 = strtok_r(NULL, " ", &saveptr);   //date1
+            char *arg3 = strtok_r(NULL, " ", &saveptr);   //date2
+            char *country = strtok_r(NULL, " ", &saveptr);
 
+            if (arg2 != NULL && arg3 != NULL) {
+                date1->day = atoi(strtok_r(arg2, "-", &saveptr));
+                date1->month = atoi(strtok_r(NULL, "-", &saveptr));
+                date1->year = atoi(strtok_r(NULL, "-", &saveptr));
+                date2->day = atoi(strtok_r(arg3, "-", &saveptr));
+                date2->month = atoi(strtok_r(NULL, "-", &saveptr));
+                date2->year = atoi(strtok_r(NULL, "-", &saveptr));
 
-        } else if (strcmp(command, "/numPatientDischarges") == 0) {
+                if (country != NULL) {
+                    sendToWorkerHavingCountry(country, query, socketFd);
+                } else
+                    sendToWorkerSimple(query, socketFd);
+
+            }
+
+            free(date1);
+            free(date2);
 
         }
     }
 
+}
+
+void sendToWorkerSimple(char* query, int socketFd){
+    struct sockaddr *serverptr;
+    struct sockaddr_in worker;
+    int newSocket;
+    char * answer;
+    socklen_t workerlen;
+
+    for(int i = 0; i < whoServerManager->numOfWorkers; i++){
+        /* Find worker address */
+        if ((newSocket = socket(AF_INET, SOCK_STREAM, 0)) < 0){
+            perror("worker socket");
+            exit(1);
+        }
+        worker.sin_family = AF_INET;
+        worker.sin_addr.s_addr = whoServerManager->serverSocket->socketAddressServer.sin_addr.s_addr;
+        worker.sin_port = htons(whoServerManager->workerItemArray[i].workerPort);         /* Server port */
+
+        serverptr = (struct sockaddr *) &(worker);
+        workerlen = sizeof(worker);
+        if (connect(newSocket, serverptr, workerlen) < 0) {
+            perror("Connect worker");
+            exit(1);
+        }
+        fprintf(stderr, "Connecting to worker server port %d to send query\n",
+                whoServerManager->workerItemArray[i].workerPort);
+
+        write(newSocket, query, MESSAGE_BUFFER);
+        answer = calloc(sizeof(char), MESSAGE_BUFFER);
+        fprintf(stderr, "Waiting for results\n");
+        read(newSocket, answer, MESSAGE_BUFFER);
+        //fprintf(stderr, "%s\n",answer);
+        write(socketFd, answer, MESSAGE_BUFFER);
+
+    }
+
+}
+
+
+
+
+void sendToWorkerHavingCountry(char* country, char* query, int socketFd){
+
+    struct sockaddr *serverptr;
+    struct sockaddr_in worker;
+    int newSocket;
+    char * answer;
+    socklen_t workerlen;
+
+    for(int i = 0; i < whoServerManager->numOfWorkers; i++) {
+
+        pthread_mutex_lock(&(whoServerManager->mtxW));
+
+        if (workerHasCountry(country, (whoServerManager->workerItemArray[i].list))) {
+            pthread_mutex_unlock(&(whoServerManager->mtxW));
+            /* Find server address */
+            if ((newSocket = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
+                perror("client socket");
+                exit(1);
+            }
+            worker.sin_family = AF_INET;
+            worker.sin_addr = whoServerManager->serverSocket->socketAddressClient.sin_addr;
+            worker.sin_port = htons(whoServerManager->workerItemArray[i].workerPort);         /* Server port */
+
+            serverptr = (struct sockaddr *) &(worker);
+            workerlen = sizeof(worker);
+            if (connect(newSocket, serverptr, workerlen) < 0) {
+                perror("Connect worker");
+                exit(1);
+            }
+            fprintf(stderr, "Connecting to worker server port %d to send query\n",
+                    whoServerManager->workerItemArray[i].workerPort);
+
+            write(newSocket, query, MESSAGE_BUFFER);
+            answer = calloc(sizeof(char), MESSAGE_BUFFER);
+            fprintf(stderr, "Waiting for results\n");
+            //do {
+            read(newSocket, answer, MESSAGE_BUFFER);
+            //fprintf(stderr, "--%s\n", answer);
+            write(socketFd, answer, MESSAGE_BUFFER);
+            //} while (strcmp(answer, "$END$") != 0);
+            break;
+        } else {
+            pthread_mutex_unlock(&(whoServerManager->mtxW));
+        }
+    }
 }
 
 bool workerHasCountry(char *country, List *workerCountryList){
@@ -449,7 +505,7 @@ bool workerHasCountry(char *country, List *workerCountryList){
 }
 
 bool compareListItemCountry(CountryListItem* countryItem, char* key){
-    fprintf(stderr,"#############%s %s\n", countryItem->country, key);
+    //fprintf(stderr,"#############%s %s\n", countryItem->country, key);
     if (strcmp(countryItem->country, key) == 0){
         return true;
     }

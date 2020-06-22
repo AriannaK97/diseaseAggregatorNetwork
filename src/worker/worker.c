@@ -53,7 +53,7 @@ int main(int argc, char** argv) {
     /*receive serverIP*/
     message = calloc(sizeof(char),(arguments->bufferSize)+1);
     readFromFifoPipe(cmdManager->fd_client_r, message,(arguments->bufferSize) + 1);
-    cmdManager->serverIP = message;
+    strcpy(cmdManager->serverIP, message);
     free(message);
 
     /*receive serverPort*/

@@ -203,6 +203,7 @@ CmdManager* initializeStructures(MonitorInputArguments *monitorInputArguments){
     cmdManager->bufferSize = monitorInputArguments->bufferSize;
     cmdManager->fd_client_r = -1;
     cmdManager->fd_client_w = -1;
+    cmdManager->serverIP = calloc(sizeof(char), MESSAGE_BUFFER);
 
     return cmdManager;
 }

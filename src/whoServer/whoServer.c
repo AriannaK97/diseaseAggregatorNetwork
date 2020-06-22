@@ -75,8 +75,8 @@ int main (int argc, char** argv){
             fprintf(stdout, "\nGained lock to add item.\n");
             circularBufPut(threadPool->circularBuffer, newSock, WORKER_SOCKET);
 
-            pthread_cond_signal(&(threadPool->mutexCond));
             pthread_mutex_unlock(&(threadPool->mutexLock));
+            pthread_cond_signal(&(threadPool->mutexCond));
 
             funlockfile(stdout);
 
@@ -106,10 +106,10 @@ int main (int argc, char** argv){
             fprintf(stderr, "\n------------------------\n");
             fprintf(stderr, "\nGained lock to add item of type client socket.\n");
             circularBufPut(threadPool->circularBuffer, newSockClient, CLIENT_SOCKET);
-            fprintf(stdout, "whoServer %d\n", newSockClient);
             funlockfile(stdout);
-            pthread_cond_signal(&(threadPool->mutexCond));
             pthread_mutex_unlock(&(threadPool->mutexLock));
+            usleep(10000);
+            pthread_cond_signal(&(threadPool->mutexCond));
 
         }
 
