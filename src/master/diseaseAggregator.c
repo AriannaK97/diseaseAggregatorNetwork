@@ -502,8 +502,8 @@ void commandServer(CmdManager* manager) {
     char* saveptr;
 
     while(1){
+
         clientlen = sizeof(cmdManager->workerptr);
-        fprintf(stderr, "Wait to accept\n");
 
         if ((cmdManager->newSock = accept((cmdManager->workerSock),(struct sockaddr *) &(cmdManager->workerptr), &clientlen))< 0){
             perror("Accept worker");
@@ -513,7 +513,7 @@ void commandServer(CmdManager* manager) {
         fprintf(stdout, "WhoServer accepted connection to client %d\n", cmdManager->newSock);
 
         reader = read(cmdManager->newSock, line, MESSAGE_BUFFER);
-        fprintf(stderr, "%s\n", line);
+        fprintf(stdout, "%s\n", line);
 
         if(sig_flag && reader < 0){
             reader = read(cmdManager->newSock, line, MESSAGE_BUFFER);

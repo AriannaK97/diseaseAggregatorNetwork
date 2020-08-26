@@ -86,24 +86,24 @@ int main(int argc, char** argv){
         aggregatorMasterManager->workersArray[i].fd_client_w = openFifoToWrite(aggregatorMasterManager->workersArray[i].serverFileName);
 
         /*send serverIP address*/
-        writeInFifoPipe(aggregatorMasterManager->workersArray[i].fd_client_w, aggregatorMasterManager->serverIP, (aggregatorMasterManager->bufferSize) + 1);
+        writeInFifoPipe(aggregatorMasterManager->workersArray[i].fd_client_w, aggregatorMasterManager->serverIP, aggregatorMasterManager->bufferSize);
 
         /*send serverPort address*/
         message = calloc(sizeof(char), aggregatorMasterManager->bufferSize + 1);
         sprintf(message, "%d", aggregatorMasterManager->serverPort);
-        writeInFifoPipe(aggregatorMasterManager->workersArray[i].fd_client_w, message, (aggregatorMasterManager->bufferSize) + 1);
+        writeInFifoPipe(aggregatorMasterManager->workersArray[i].fd_client_w, message, aggregatorMasterManager->bufferSize);
         free(message);
 
         /*send serverPort address*/
-        message = calloc(sizeof(char), aggregatorMasterManager->bufferSize + 1);
+        message = calloc(sizeof(char), aggregatorMasterManager->bufferSize);
         sprintf(message, "%d", aggregatorMasterManager->numOfWorkers);
-        writeInFifoPipe(aggregatorMasterManager->workersArray[i].fd_client_w, message, (aggregatorMasterManager->bufferSize) + 1);
+        writeInFifoPipe(aggregatorMasterManager->workersArray[i].fd_client_w, message, aggregatorMasterManager->bufferSize);
         free(message);
 
         /*send the length of the data the worker has to read*/
         message = calloc(sizeof(char), aggregatorMasterManager->bufferSize + 1);
         sprintf(message, "%d", aggregatorMasterManager->directoryDistributor[i]->itemCount);
-        writeInFifoPipe(aggregatorMasterManager->workersArray[i].fd_client_w, message, (aggregatorMasterManager->bufferSize) + 1);
+        writeInFifoPipe(aggregatorMasterManager->workersArray[i].fd_client_w, message, aggregatorMasterManager->bufferSize);
         free(message);
 
         currentNode = (Node*)aggregatorMasterManager->directoryDistributor[i]->head;
@@ -112,9 +112,9 @@ int main(int argc, char** argv){
             /*write the size of the name of the directory to follow to fifo*/
             //printf("from master %d\n", messageSize);
             /*write the directory name to fifo*/
-            message = calloc(sizeof(char), (aggregatorMasterManager->bufferSize) + 1);
+            message = calloc(sizeof(char), aggregatorMasterManager->bufferSize);
             strcpy(message, item->dirName);
-            writeInFifoPipe(aggregatorMasterManager->workersArray[i].fd_client_w, message, (size_t)(aggregatorMasterManager->bufferSize) + 1);
+            writeInFifoPipe(aggregatorMasterManager->workersArray[i].fd_client_w, message, (size_t)(aggregatorMasterManager->bufferSize));
             free(message);
 
             currentNode = currentNode->next;

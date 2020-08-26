@@ -10,7 +10,7 @@
 #include <stdbool.h>
 #include <pthread.h>
 #include "whoClientCircularBuffer.h"
-#include <bits/types/FILE.h>
+#include <stdio.h>
 #include <netinet/in.h>
 
 #define DATA_LENGTH 120

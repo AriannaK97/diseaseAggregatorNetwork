@@ -115,7 +115,7 @@ bool receiveStats(int readBufferSize, int sock){
             /*read actual message from fifo*/
             fileName = calloc(sizeof(char), MESSAGE_BUFFER);
             read(sock, fileName,MESSAGE_BUFFER);
-            //fprintf(stdout, "\n%s\n%s\n",fileName, countryListItem->country);
+            fprintf(stdout, "\n%s\n%s\n",fileName, countryListItem->country);
 
             /*read per disease*/
             messageSize = calloc(sizeof(char), MESSAGE_BUFFER);
@@ -126,13 +126,13 @@ bool receiveStats(int readBufferSize, int sock){
                 /*read actual message from fifo*/
                 disease = calloc(sizeof(char), MESSAGE_BUFFER);
                 read(sock, disease,MESSAGE_BUFFER);
-                //fprintf(stdout, "%s\n", disease);
+                fprintf(stdout, "%s\n", disease);
 
                 for (int l = 0; l < 4; l++) {
                     /*read actual message from fifo*/
                     message = calloc(sizeof(char), MESSAGE_BUFFER);
                     read(sock, message,MESSAGE_BUFFER);
-                    //fprintf(stdout, "%s\n", message);
+                    fprintf(stdout, "%s\n", message);
                     free(message);
                 }
 
@@ -205,7 +205,6 @@ void *workerThread(void* arg){
     while (threadPool->end == 0){
 
         // Try to get lock:
-        fprintf(stderr, "Wait Mutexlock\n");
         pthread_mutex_lock(&(threadPool->mutexLock));
 
         // Wait until round buffer has available items:
@@ -216,7 +215,6 @@ void *workerThread(void* arg){
         // If threadpool dead
         if(threadPool->end == 1){
             pthread_mutex_unlock(&(threadPool->mutexLock));
-            fprintf(stderr, "Mutex-Un-lock - dead thread\n");
             break;
         }
 
@@ -261,7 +259,7 @@ void *workerThread(void* arg){
             whoServerManager->workerItemArray[whoServerManager->workerArrayIndex].workerPort = workerPort;
 
             flockfile(stdout);
-            fprintf(stdout, "Receiving Statistics...\n");
+            fprintf(stdout, "\nReceiving Statistics...\n");
             if (!receiveStats(MESSAGE_BUFFER, newSock)) {
                 fprintf(stderr, "Could not receive statistics\n");
             }
@@ -271,7 +269,6 @@ void *workerThread(void* arg){
             whoServerManager->workerArrayIndex += 1;
             //fprintf(stderr, "%d %d\n", whoServerManager->numOfWorkers ,whoServerManager->numOfWorkersEnd);
             if((whoServerManager->numOfWorkers) == (whoServerManager->numOfWorkersEnd)){
-                fprintf(stderr, "Wait the clients\n");
                 whoServerManager->waitClient = true;
             }
             pthread_mutex_unlock(&(whoServerManager->mtxW));
@@ -283,7 +280,7 @@ void *workerThread(void* arg){
             message = calloc(sizeof(char *), MESSAGE_BUFFER);
 
             read(newSock, message, MESSAGE_BUFFER);
-            fprintf(stderr, "Sending query: %s\n", message);
+            fprintf(stderr, "\nSending query: %s\n", message);
 
             //send the query to the worker/s responsible
             sendQueryToWorker(message, newSock);
@@ -413,6 +410,11 @@ void sendToWorkerSimple(char* query, int socketFd){
     char * answer;
     socklen_t workerlen;
 
+    int sum = 0;
+    char* tmpAnwser = calloc(sizeof(char), MESSAGE_BUFFER);
+    bool sendFlag = false;
+    bool intFlag = false;
+
     for(int i = 0; i < whoServerManager->numOfWorkers; i++){
         /* Find worker address */
         if ((newSocket = socket(AF_INET, SOCK_STREAM, 0)) < 0){
@@ -434,11 +436,37 @@ void sendToWorkerSimple(char* query, int socketFd){
 
         write(newSocket, query, MESSAGE_BUFFER);
         answer = calloc(sizeof(char), MESSAGE_BUFFER);
-        fprintf(stderr, "Waiting for results\n");
-        read(newSocket, answer, MESSAGE_BUFFER);
-        //fprintf(stderr, "%s\n",answer);
-        write(socketFd, answer, MESSAGE_BUFFER);
+        char* saveptr;
+        char* command = strdup(query);
+        command = strtok_r(command, " ", &saveptr);
+        if(strcmp(command, "/diseaseFrequency") == 0) {         /*for number results*/
+            read(newSocket, answer, MESSAGE_BUFFER);
+            sum += atoi(answer);
+            sendFlag = true;
+            intFlag = true;
+            free(answer);
+        }else if(strcmp(command, "/numPatientAdmissions") == 0 || strcmp(command, "/numPatientDischarges") == 0){   /*for string concatenation*/
+            read(newSocket, answer, MESSAGE_BUFFER);
+            strcat(tmpAnwser, answer);
+            printf("%s", tmpAnwser);
+            sendFlag = true;
+        }else{
+            read(newSocket, answer, MESSAGE_BUFFER);
+            write(socketFd, answer, MESSAGE_BUFFER);
+            free(answer);
+        }
 
+    }
+    if(sendFlag == true){
+        if(intFlag == true) {
+            answer = calloc(sizeof(char), MESSAGE_BUFFER);
+            sprintf(answer, "%d", sum);
+            write(socketFd, answer, MESSAGE_BUFFER);
+            free(answer);
+        } else{
+            write(socketFd, tmpAnwser, MESSAGE_BUFFER);
+        }
+        free(tmpAnwser);
     }
 
 }

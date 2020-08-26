@@ -23,8 +23,7 @@ int main (int argc, char** argv) {
 
     readQueryFile(threadPool);
 
-    //sleep(2);
-
+    //usleep(100000);
     pthread_cond_broadcast(&(threadPool->mutexCond));
 
     for(int i=0; i < whoClientManager->numThreads; i++){

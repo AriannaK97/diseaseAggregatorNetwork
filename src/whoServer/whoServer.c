@@ -38,7 +38,7 @@ int main (int argc, char** argv){
     if (bind(whoServerManager->serverSocket->socket, (struct sockaddr *)&(whoServerManager->serverSocket->socketAddressServer), sizeof(whoServerManager->serverSocket->socketAddressServer)) < 0)
         perror_exit("bind");
 
-    if (listen(whoServerManager->serverSocket->socket, whoServerManager->numThreads * 2) < 0)
+    if (listen(whoServerManager->serverSocket->socket, 2500) < 0)
         perror_exit("listen");
     fprintf(stdout,"Listening for connections to port %d\n", whoServerManager->statisticsPortNum);
 
@@ -49,7 +49,7 @@ int main (int argc, char** argv){
     if (bind(whoServerManager->clientSocket->socket, (struct sockaddr *)&(whoServerManager->clientSocket->socketAddressServer), sizeof(whoServerManager->clientSocket->socketAddressServer)) < 0)
         perror_exit("bind");
 
-    if (listen(whoServerManager->clientSocket->socket, whoServerManager->numThreads * 2) < 0)
+    if (listen(whoServerManager->clientSocket->socket, 2500) < 0)
         perror_exit("listen");
     fprintf(stdout,"Listening for connections to port %d\n", whoServerManager->queryPortNum);
 
@@ -76,6 +76,7 @@ int main (int argc, char** argv){
             circularBufPut(threadPool->circularBuffer, newSock, WORKER_SOCKET);
 
             pthread_mutex_unlock(&(threadPool->mutexLock));
+
             pthread_cond_signal(&(threadPool->mutexCond));
 
             funlockfile(stdout);
@@ -103,11 +104,15 @@ int main (int argc, char** argv){
 
             pthread_mutex_lock(&(threadPool->mutexLock));
 
-            fprintf(stderr, "\n------------------------\n");
+            fprintf(stderr, "\n-----------------------------------------------------\n");
             fprintf(stderr, "\nGained lock to add item of type client socket.\n");
             circularBufPut(threadPool->circularBuffer, newSockClient, CLIENT_SOCKET);
             funlockfile(stdout);
             pthread_mutex_unlock(&(threadPool->mutexLock));
+
+            /**in the case of many threads wait so that all
+             *threads be awake when the signal is sent
+             */
             usleep(10000);
             pthread_cond_signal(&(threadPool->mutexCond));
 

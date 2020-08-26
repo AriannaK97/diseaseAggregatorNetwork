@@ -208,7 +208,7 @@ CmdManager* initializeStructures(MonitorInputArguments *monitorInputArguments){
     return cmdManager;
 }
 
-CmdManager* read_input_file(FILE* patientRecordsFile, size_t maxStrLength, CmdManager* cmdManager, FileExplorer* fileExplorer, int fileExplorerPointer, bool signalServerToreadStats){
+CmdManager* read_input_file(FILE* patientRecordsFile, size_t maxStrLength, CmdManager* manager, FileExplorer* fileExplorer, int fileExplorerPointer, bool signalServerToreadStats){
     char* buffer = calloc(sizeof(char), maxStrLength);
     PatientCase* newPatient = NULL;
     Node* newNode = NULL;
@@ -273,7 +273,7 @@ FileDiseaseStats** getFileStats(CmdManager* manager, char* country, Date * date)
     while (listNode!= NULL) {
         diseaseNode = listNode->item;
         iterator.fileStats[i] = calloc(sizeof(FileDiseaseStats), 1);
-        iterator.fileStats[i]->disease = calloc(sizeof(char),manager->bufferSize + 1);
+        iterator.fileStats[i]->disease = calloc(sizeof(char),manager->bufferSize);
         strcpy(iterator.fileStats[i]->disease, diseaseNode->disease);
         iterator.fileStats[i]->AgeRangeCasesArray = (int*)calloc(sizeof(int), 4);
         i++;
@@ -347,7 +347,7 @@ void deallockFileExplorer(FileExplorer *fileExplorer){
     free(fileExplorer);
 }
 
-CmdManager* read_directory_list(CmdManager* cmdManager){
+CmdManager* read_directory_list(CmdManager* manager){
 
     Node* node = cmdManager->directoryList->head;
     FILE* entry_file;

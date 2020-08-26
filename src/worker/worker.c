@@ -51,26 +51,26 @@ int main(int argc, char** argv) {
     cmdManager->fd_client_r = openFifoToRead(cmdManager->workerInfo->serverFileName);
 
     /*receive serverIP*/
-    message = calloc(sizeof(char),(arguments->bufferSize)+1);
-    readFromFifoPipe(cmdManager->fd_client_r, message,(arguments->bufferSize) + 1);
+    message = calloc(sizeof(char),arguments->bufferSize);
+    readFromFifoPipe(cmdManager->fd_client_r, message,arguments->bufferSize);
     strcpy(cmdManager->serverIP, message);
     free(message);
 
     /*receive serverPort*/
-    message = calloc(sizeof(char),(arguments->bufferSize)+1);
-    readFromFifoPipe(cmdManager->fd_client_r, message,(arguments->bufferSize) + 1);
+    message = calloc(sizeof(char),arguments->bufferSize);
+    readFromFifoPipe(cmdManager->fd_client_r, message,arguments->bufferSize);
     cmdManager->serverPort = atoi(message);
     free(message);
 
     /*receive numOfWorkers in system*/
     message = calloc(sizeof(char),(arguments->bufferSize)+1);
-    readFromFifoPipe(cmdManager->fd_client_r, message,(arguments->bufferSize) + 1);
+    readFromFifoPipe(cmdManager->fd_client_r, message,arguments->bufferSize);
     cmdManager->numOfWorkers = atoi(message);
     free(message);
 
     /*receive from master the length of data the worker will receive*/
     dataLengthStr = calloc(sizeof(char), (cmdManager->bufferSize)+1);
-    readFromFifoPipe(cmdManager->fd_client_r, dataLengthStr, (cmdManager->bufferSize) + 1);
+    readFromFifoPipe(cmdManager->fd_client_r, dataLengthStr, cmdManager->bufferSize);
     dataLength = atoi(dataLengthStr);
     free(dataLengthStr);
 
@@ -80,8 +80,8 @@ int main(int argc, char** argv) {
 
     /*read actual message from fifo*/
 
-        message = calloc(sizeof(char),(arguments->bufferSize)+1);
-        readFromFifoPipe(cmdManager->fd_client_r, message,(arguments->bufferSize) + 1);
+        message = calloc(sizeof(char),arguments->bufferSize);
+        readFromFifoPipe(cmdManager->fd_client_r, message,arguments->bufferSize);
         messageSize = arguments->bufferSize;
 
 
@@ -89,7 +89,7 @@ int main(int argc, char** argv) {
         newNodeItem->dirName = (char*)malloc(sizeof(char)*MESSAGE_SIZE);
         newNodeItem->dirPath = (char*)malloc(sizeof(char)*MESSAGE_SIZE);
 
-        memcpy(newNodeItem->dirName, message, messageSize+1);
+        memcpy(newNodeItem->dirName, message, messageSize);
         strcpy(newNodeItem->dirPath, arguments->input_dir);
         strcat(newNodeItem->dirPath, "/");
         strcat(newNodeItem->dirPath, message);
@@ -135,7 +135,7 @@ int main(int argc, char** argv) {
 
     /*Worker address assign from system*/
     client.sin_family = AF_INET;
-    client.sin_addr = myaddress;
+    client.sin_addr.s_addr = htonl(INADDR_ANY);
     client.sin_port = 0;
 
     /* Initiate connection for server*/
@@ -178,7 +178,7 @@ int main(int argc, char** argv) {
 
     /* Initiate connection for worker port*/
     cmdManager->workerptr = (struct sockaddr*)&client;
-    if (listen(cmdManager->workerSock, 100) < 0){
+    if (listen(cmdManager->workerSock, 1000) < 0){
         perror("Listen worker");
         exit(1);
     }
